@@ -6,7 +6,6 @@ MACD_Signal_Listener is a python implementation of the popular MACD technical in
 - Crossover signals of MACD main line with signal line (both upwards|bullish and downwards|bearish).
 - Divergence signals, both bearish and bullish.
 
-![](https://raw.githubusercontent.com/raulMrello/ActiveModule/master/AO.jpg)
 
 
   
