@@ -93,9 +93,13 @@ class ZIGZAG_Signal_Listener():
         self.curr = ActionCtrl.ActionType.NoActions
         self.last_high = high
         self.last_high_idx = idx
+        self.beforelast_high = high
+        self.beforelast_high_idx = idx
         self.last_swing_high_idx = idx
         self.last_low = low
         self.last_low_idx = idx
+        self.beforelast_low = low
+        self.beforelast_low_idx = idx        
         self.last_swing_low_idx = idx
         self.delta = delta
         self.x = []
@@ -118,6 +122,8 @@ class ZIGZAG_Signal_Listener():
         # check if HIGH must be updated
         max_value = x.HIGH #max(x.OPEN,x.CLOSE)
         if self.curr == ActionCtrl.ActionType.SearchingHigh and max_value > self.last_high:
+          self.beforelast_high = self.last_high
+          self.beforelast_high_idx = self.last_high_idx          
           self.last_high = max_value
           self.last_high_idx = x.name
           log += ' new HIGH={}'.format(max_value)   
@@ -127,6 +133,8 @@ class ZIGZAG_Signal_Listener():
         # check if LOW must be updated
         min_value = x.LOW #min(x.OPEN,x.CLOSE)
         if self.curr == ActionCtrl.ActionType.SearchingLow and min_value < self.last_low:
+          self.beforelast_low = self.last_low
+          self.beforelast_low_idx = self.last_low_idx
           self.last_low = min_value
           self.last_low_idx = x.name
           log += ' new LOW={}'.format(min_value)
@@ -152,6 +160,8 @@ class ZIGZAG_Signal_Listener():
             df.at[self.last_low_idx,'ZIGZAG'] =  nan_value
             df.at[self.last_low_idx,'ACTION'] =  'high' 
             log += ' remove LOW @[{}]'.format(self.last_low_idx)
+            self.last_low = self.beforelast_low
+            self.last_low_idx = self.beforelast_low_idx
             self.__logger.info(log)  
           else:
             # save last low     
@@ -159,6 +169,8 @@ class ZIGZAG_Signal_Listener():
             self.x.append(self.last_low_idx)
             self.y.append(self.last_low)
             # starts high recording
+            self.beforelast_high = self.last_high
+            self.beforelast_high_idx = self.last_high_idx
             self.last_high = max_value
             self.last_high_idx = x.name
             log += ' save LOW @[{}]={}, new HIGH=>{}'.format(self.last_low_idx, self.last_low, max_value)    
@@ -184,6 +196,8 @@ class ZIGZAG_Signal_Listener():
             df.at[self.last_high_idx,'ZIGZAG'] =  nan_value
             df.at[self.last_high_idx,'ACTION'] =  'low' 
             log += ' remove HIGH @[{}]'.format(self.last_high_idx)
+            self.last_high = self.beforelast_high
+            self.last_high_idx = self.beforelast_high_idx
             self.__logger.info(log)  
           else:
             # save last high
@@ -191,6 +205,8 @@ class ZIGZAG_Signal_Listener():
             self.x.append(self.last_high_idx)
             self.y.append(self.last_high)
             # starts low recording
+            self.beforelast_low = self.last_low
+            self.beforelast_low_idx = self.last_low_idx
             self.last_low = min_value
             self.last_low_idx = x.name
             log += ' save HIGH @[{}]={}, new LOW=>{}'.format(self.last_high_idx, self.last_high, min_value)        
