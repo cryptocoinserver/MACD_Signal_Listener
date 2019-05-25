@@ -37,9 +37,21 @@ import logging
 ####################################################################################
 
 
-class DivergenceEvents():
-  def __init__(self):
+class DivergenceEvent():
+  def __init__(self, evt, at):
     self.clear()
+    if evt == 'regular-bullish-divergence':
+      self.RegularBullish = True
+    if evt == 'regular-bearish-divergence':
+      self.RegularBearish = True
+    if evt == 'hidden-bullish-divergence':
+      self.HiddenBullish = True
+    if evt == 'hidden-bearish-divergence':
+      self.HiddenBearish = True
+    if at == 'macd':
+      self.AtMACD = True
+    if at == 'rsi':
+      self.AtRSI = True
 
   def clear(self):
     self.RegularBullish = False
@@ -48,7 +60,6 @@ class DivergenceEvents():
     self.HiddenBearish = False
     self.AtMACD = False
     self.AtRSI = False
-    self.AtStochastic = False
 
   def any(self):
     if self.RegularBullish or self.RegularBearish or self.HiddenBullish or self.HiddenBearish:
@@ -71,8 +82,6 @@ class DivergenceEvents():
       result += 'AtMACD '
     if self.AtRSI:
       result += 'AtRSI '
-    if self.AtStochastic:
-      result += 'AtStochastic '
       
     return result
 
@@ -86,7 +95,6 @@ class Divergences():
     self.__logger = logging.getLogger(__name__)
     self.__logger.setLevel(level)
     self.__df = None
-    self.__events = DivergenceEvents()
     self.__logger.info('Created!')
     self.__zigzag = ZIGZAG_Signal_Listener(level)
 
@@ -105,7 +113,7 @@ class Divergences():
     """
     
     # clear events
-    self.__events.clear()
+    self.__events = []
 
     #builds zigzag
     _minbars   = zigzag_cfg['minbars'] if 'minbars' in zigzag_cfg.keys() else 12  
@@ -134,6 +142,14 @@ class Divergences():
     _df.dropna(inplace=True)
     _df.reset_index(drop=True, inplace=True)
 
+    # add result columns
+    _df['DIVERGENCE_MACD'] = 'none'
+    _df['DIVERGENCE_MACD_FROM'] = 0
+    _df['DIVERGENCE_RSI'] = 'none'
+    _df['DIVERGENCE_RSI_FROM'] = 0
+    _df['DIVERGENCE_STOCH'] = 'none'
+    _df['DIVERGENCE_STOCH_FROM'] = 0
+    
     if exitAt == 'oscillator-built':
       return _df.copy()
 
@@ -161,37 +177,98 @@ class Divergences():
            log += 'error-zzpoints-count={} '.format(zzpoints.shape[0])
         
         else:
-          log += 'zzpoints={} '.format(zzpoints[-6:])
+          
           if exitAt == 'zzpoints-processing':
+            log += 'zzpoints={} '.format(zzpoints[-6:])
             logger.debug(log)
             return
 
+          curr_is = 'unknown'
           # get indexes of 2 last min and max points:
-          if zzpoints[-1] > zzpoints[-2]:
+          if zzpoints.iloc[-1] > zzpoints.iloc[-2]:
             log += 'last is MAX '
+            if exitAt == 'minmax-identify':
+              logger.debug(log)
+              return
+            curr_is = 'max'
             max1_idx = zzpoints.index[-3]
             max0_idx = zzpoints.index[-1]
             min1_idx = zzpoints.index[-4]
             min0_idx = zzpoints.index[-2]
             log += 'max0={}, min0={}, max1={}, min1={} '.format(max0_idx, min0_idx, max1_idx, min1_idx)
-            #TODO<------------
 
           else:
             log += 'last is MIN '
-            # get indexes of last 2 min and max points
+            if exitAt == 'minmax-identify':
+              logger.debug(log)
+              return         
+            curr_is = 'min'   
             max1_idx = zzpoints.index[-4]
             max0_idx = zzpoints.index[-2]
             min1_idx = zzpoints.index[-3]
             min0_idx = zzpoints.index[-1]
             log += 'max0={}, min0={}, max1={}, min1={} '.format(max0_idx, min0_idx, max1_idx, min1_idx)
-            #TODO<------------        
+
+          if exitAt == 'minmax-resolve':
+            logger.debug(log)
+            return
 
           # check if is bullish trend
-          if ((zzpoints[-1] >= zzpoints[-3] and zzpoints[-3] >= zzpoints[-5]) or (zzpoints[-2] >= zzpoints[-4] and zzpoints[-4] >= zzpoints[-6])):
+          if ((zzpoints.iloc[-1] >= zzpoints.iloc[-3] and zzpoints.iloc[-3] >= zzpoints.iloc[-5]) or (zzpoints.iloc[-2] >= zzpoints.iloc[-4] and zzpoints.iloc[-4] >= zzpoints.iloc[-6])):
             log += 'bullish-trend '
+            # if last is max check regular divergences
+            if curr_is == 'max':
+              log += 'check macd: {} and {}'.format(df.MACD_main.iloc[max0_idx], df.MACD_main.iloc[max1_idx])
+              if df.MACD_main.iloc[max0_idx] < df.MACD_main.iloc[max1_idx]:
+                log += 'regular-bearish-divergence '
+                df.at[max0_idx, 'DIVERGENCE_MACD'] = 'regular-bearish-divergence'
+                df.at[max0_idx, 'DIVERGENCE_MACD_FROM'] = max1_idx
+              log += 'check rsi: {} and {}'.format(df.RSI.iloc[max0_idx], df.RSI.iloc[max1_idx])
+              if df.RSI.iloc[max0_idx] < df.RSI.iloc[max1_idx]:
+                log += 'regular-bearish-divergence '
+                df.at[max0_idx, 'DIVERGENCE_RSI'] = 'regular-bearish-divergence'
+                df.at[max0_idx, 'DIVERGENCE_RSI_FROM'] = max1_idx
+              
+            else:
+              log += 'check macd: {} and {}'.format(df.MACD_main.iloc[max0_idx], df.MACD_main.iloc[max1_idx])
+              if df.MACD_main.iloc[max0_idx] < df.MACD_main.iloc[max1_idx]:
+                log += 'hidden-bearish-divergence '
+                df.at[min0_idx, 'DIVERGENCE_MACD'] = 'hidden-bearish-divergence'
+                df.at[min0_idx, 'DIVERGENCE_MACD_FROM'] = min1_idx
+              log += 'check rsi: {} and {}'.format(df.RSI.iloc[max0_idx], df.RSI.iloc[max1_idx])
+              if df.RSI.iloc[max0_idx] < df.RSI.iloc[max1_idx]:
+                log += 'hidden-bearish-divergence'
+                df.at[min0_idx, 'DIVERGENCE_RSI'] = 'hidden-bearish-divergence'
+                df.at[min0_idx, 'DIVERGENCE_RSI_FROM'] = min1_idx
+
           # check if is bearish trend
-          elif ((zzpoints[-1] <= zzpoints[-3] and zzpoints[-3] <= zzpoints[-5]) or (zzpoints[-2] <= zzpoints[-4] and zzpoints[-4] <= zzpoints[-6])):
+          elif ((zzpoints.iloc[-1] <= zzpoints.iloc[-3] and zzpoints.iloc[-3] <= zzpoints.iloc[-5]) or (zzpoints.iloc[-2] <= zzpoints.iloc[-4] and zzpoints.iloc[-4] <= zzpoints.iloc[-6])):
             log += 'bearish-trend '
+            # if last is max check regular divergences
+            if curr_is == 'max':
+              log += 'check macd: {} and {}'.format(df.MACD_main.iloc[max0_idx], df.MACD_main.iloc[max1_idx])
+              if df.MACD_main.iloc[max0_idx] > df.MACD_main.iloc[max1_idx]:
+                log += 'hidden-bullish-divergence '
+                df.at[max0_idx, 'DIVERGENCE_MACD'] = 'hidden-bullish-divergence'
+                df.at[max0_idx, 'DIVERGENCE_MACD_FROM'] = max1_idx
+              log += 'check rsi: {} and {}'.format(df.RSI.iloc[max0_idx], df.RSI.iloc[max1_idx])
+              if df.RSI.iloc[max0_idx] > df.RSI.iloc[max1_idx]:
+                log += 'hidden-bullish-divergence '
+                df.at[max0_idx, 'DIVERGENCE_RSI'] = 'hidden-bullish-divergence'
+                df.at[max0_idx, 'DIVERGENCE_RSI_FROM'] = max1_idx
+              
+            else:
+              log += 'check macd: {} and {}'.format(df.MACD_main.iloc[max0_idx], df.MACD_main.iloc[max1_idx])
+              if df.MACD_main.iloc[max0_idx] > df.MACD_main.iloc[max1_idx]:
+                log += 'regular-bullish-divergence '
+                df.at[max0_idx, 'DIVERGENCE_MACD'] = 'regular-bullish-divergence'
+                df.at[min0_idx, 'DIVERGENCE_MACD_FROM'] = min1_idx
+              log += 'check rsi: {} and {}'.format(df.RSI.iloc[max0_idx], df.RSI.iloc[max1_idx])
+              if df.RSI.iloc[max0_idx] > df.RSI.iloc[max1_idx]:
+                log += 'regular-bullish-divergence'
+                df.at[max0_idx, 'DIVERGENCE_RSI'] = 'regular-bullish-divergence'
+                df.at[min0_idx, 'DIVERGENCE_RSI_FROM'] = min1_idx
+
           # is an undefined trend, then discard calculation
           else: 
             log += 'error-no-trend'
@@ -199,6 +276,13 @@ class Divergences():
       #---end-of-search-function
 
     # execute search
-    self.__df = _df.apply(lambda x: search(x, _df, _nan_value, self.__logger, exitAt), axis=1)
-    return self.__df
+    _df.apply(lambda x: search(x, _df, _nan_value, self.__logger, exitAt), axis=1)
+    self.__df = _df
+
+    # check signals on last row
+    if self.__df.DIVERGENCE_MACD.iloc[-1] != 'none':
+      self.__events.append(DivergenceEvent(self.__df.DIVERGENCE_MACD.iloc[-1], 'macd'))
+    if self.__df.DIVERGENCE_RSI.iloc[-1] != 'none':
+      self.__events.append(DivergenceEvent(self.__df.DIVERGENCE_RSI.iloc[-1], 'rsi'))
+    return self.__df, self.__events
 
