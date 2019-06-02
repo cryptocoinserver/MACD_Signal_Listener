@@ -364,8 +364,25 @@ class FuzzyMarketState():
     df['SMA_FAST']  = ma_fast
     df['SMA_MID']   = ma_mid
     df['SMA_SLOW']  = ma_slow
-    df['SMA_BULLISH_TREND'] = df.apply(lambda x: 1 if x.SMA_FAST > x.SMA_MID and x.SMA_MID > x.SMA_SLOW else 0, axis=1)
-    df['SMA_BEARISH_TREND'] = df.apply(lambda x: 1 if x.SMA_FAST < x.SMA_MID and x.SMA_MID < x.SMA_SLOW else 0, axis=1)
+    def fn_strength(x, level):
+      strength = 0
+      if level==1:
+        if x.CLOSE > x.SMA_SLOW:
+          strength += 0.2
+        if x.CLOSE > x.SMA_MID:
+          strength += 0.3
+        if x.CLOSE > x.SMA_FAST:
+          strength += 0.5
+      else:
+        if x.CLOSE < x.SMA_SLOW:
+          strength += 0.2
+        if x.CLOSE < x.SMA_MID:
+          strength += 0.3
+        if x.CLOSE < x.SMA_FAST:
+          strength += 0.5
+      return strength
+    df['SMA_BULLISH_TREND'] = df.apply(lambda x: fn_strength(x, 1), axis=1)
+    df['SMA_BEARISH_TREND'] = df.apply(lambda x: fn_strength(x, 2), axis=1)
 
     return {'sma_fast': ma_fast, 
             'sma_mid': ma_mid, 
@@ -402,16 +419,19 @@ class FuzzyMarketState():
     """
     def fibo_retr(x, df, nan_value, fibo_level):
       value = x.ZIGZAG if x.ZIGZAG != nan_value else x.HIGH if x.P1 < x.P2 else x.LOW
-      if x.P1 > x.P2:
-        if fibo_level == 0.0:
-          return (x.P1 - value)/(x.P1 - x.P2)
+      try:
+        if x.P1 > x.P2:
+          if fibo_level == 0.0:
+            return (x.P1 - value)/(x.P1 - x.P2)
+          else:
+            return (x.P1 - ((x.P1 - x.P2)*fibo_level))
         else:
-          return (x.P1 - ((x.P1 - x.P2)*fibo_level))
-      else:
-        if fibo_level == 0.0:
-          return (value - x.P1)/(x.P2 - x.P1)
-        else:
-          return (x.P1 + ((x.P2 - x.P1)*fibo_level))
+          if fibo_level == 0.0:
+            return (value - x.P1)/(x.P2 - x.P1)
+          else:
+            return (x.P1 + ((x.P2 - x.P1)*fibo_level))
+      except ZeroDivisionError:
+        return nan_value
    
     fibo = df.apply(lambda x: fibo_retr(x, df, nan_value, fibo_level), axis=1)  
     df[name] = fibo
@@ -884,6 +904,60 @@ class FuzzyMarketState():
     trace_macd_hist = go.Scatter(x=self.__df.index.values, y=self.__df.MACD_hist, name='MACD_hist', line=scatter.Line(color=color[2], width=1))
     trace_rsi = go.Scatter(x=self.__df.index.values, y=self.__df.RSI, name='RSI', line=scatter.Line(color=color[0], width=1))
     return [trace_ohlc, trace_macd_main, trace_macd_sig, trace_macd_hist, trace_rsi]
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def plotMovingAverages(self, color=['blue','red','green']):
+    """ Plot Moving averages and trends signals
+      Arguments:
+        color -- color 
+      Returns:
+        [ohlc, ma_fast, ma_mid, ma_slow, bull_trend, bear_trend] -- Array of traces to plot with Plot.ly
+    """
+    trace_ohlc = go.Ohlc(x=self.__df.index.values, open=self.__df.OPEN, high=self.__df.HIGH, low=self.__df.LOW, close=self.__df.CLOSE, name='Candlestick')
+    trace_fast = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_FAST, name='SMA_fast', line=scatter.Line(color=color[0], width=1))
+    trace_mid = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_MID, name='SMA_mid', line=scatter.Line(color=color[1], width=1))
+    trace_slow = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_SLOW, name='SMA_slow', line=scatter.Line(color=color[2], width=1))
+    trace_bull_trend = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_BULLISH_TREND, name='BullishTrend', line=scatter.Line(color=color[0], width=3))
+    trace_bear_trend = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_BEARISH_TREND, name='BearishTrend', line=scatter.Line(color=color[1], width=3))
+    return [trace_ohlc, trace_fast, trace_mid, trace_slow, trace_bull_trend, trace_bear_trend]
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def plotFiboLevels(self, at=-1, color='black'):
+    """ Plot fibolevels for sample at index 'at'
+      Arguments:
+        at -- sample to plot
+        color -- color 
+      Returns:
+        fibo_trace, fibo_anotations -- Trace and anotations for sample 
+    """
+    fibo_df = self.__df[:at].copy()
+    trace_ohlc = go.Ohlc(x=fibo_df.index.values, open=fibo_df.OPEN, high=fibo_df.HIGH, low=fibo_df.LOW, close=fibo_df.CLOSE, name='Candlestick')
+    fibo_anotations =[
+      dict(x=fibo_df.index.values[-1], y=fibo_df.CLOSE.iloc[-1], xref='x', yref='y', text='{}'.format(fibo_df.FIBO_CURR.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_023.iloc[-1], xref='x', yref='y', text=' 23%:{}'.format(fibo_df.FIBO_023.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_038.iloc[-1], xref='x', yref='y', text=' 38%:{}'.format(fibo_df.FIBO_038.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_050.iloc[-1], xref='x', yref='y', text=' 50%:{}'.format(fibo_df.FIBO_050.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_061.iloc[-1], xref='x', yref='y', text=' 61%:{}'.format(fibo_df.FIBO_061.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_078.iloc[-1], xref='x', yref='y', text=' 78%:{}'.format(fibo_df.FIBO_078.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_123.iloc[-1], xref='x', yref='y', text='123%:{}'.format(fibo_df.FIBO_123.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_138.iloc[-1], xref='x', yref='y', text='138%:{}'.format(fibo_df.FIBO_138.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_150.iloc[-1], xref='x', yref='y', text='150%:{}'.format(fibo_df.FIBO_150.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_161.iloc[-1], xref='x', yref='y', text='161%:{}'.format(fibo_df.FIBO_161.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_178.iloc[-1], xref='x', yref='y', text='178%:{}'.format(fibo_df.FIBO_178.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom")
+    ]
+    return trace_ohlc, fibo_anotations
+    
+
+    trace_fast = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_FAST, name='SMA_fast', line=scatter.Line(color=color[0], width=1))
+    trace_mid = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_MID, name='SMA_mid', line=scatter.Line(color=color[1], width=1))
+    trace_slow = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_SLOW, name='SMA_slow', line=scatter.Line(color=color[2], width=1))
+    trace_bull_trend = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_BULLISH_TREND, name='BullishTrend', line=scatter.Line(color=color[0], width=3))
+    trace_bear_trend = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_BEARISH_TREND, name='BearishTrend', line=scatter.Line(color=color[1], width=3))
+    return [trace_ohlc, trace_fast, trace_mid, trace_slow, trace_bull_trend, trace_bear_trend]
             
 
 
