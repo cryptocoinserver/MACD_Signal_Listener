@@ -197,10 +197,12 @@ class FuzzyMarketState():
     ma_slow_applied = params['ma_slow_applied'] if 'ma_slow_applied' in params.keys() else 'CLOSE'
     ma_slow_period  = params['ma_slow_period'] if 'ma_slow_period' in params.keys() else 200 
     ma_slow_type    = params['ma_slow_type'] if 'ma_slow_type' in params.keys() else 'SMA'
+    ma_trend_filters=params['ma_trend_filters'] if 'ma_trend_filters' in params.keys() else {'price-slow': 0.5, 'price-mid': 0.3, 'price-fast': 0.2}
     self.build3MovingAverages(_df, 
                               ma_fast_applied, ma_fast_period, ma_fast_type,
                               ma_mid_applied, ma_mid_period, ma_mid_type,
-                              ma_slow_applied, ma_slow_period, ma_slow_type)
+                              ma_slow_applied, ma_slow_period, ma_slow_type,
+                              ma_trend_filters)
 
     # build fibonacci retracement and extensions
     nan_value = params['fibo_nan_value'] if 'fibo_nan_value' in params.keys() else 0.0
@@ -208,9 +210,8 @@ class FuzzyMarketState():
     self.buildCommonFiboLevels(_df, nan_value)    
 
     # build support and resistances based on previous zigzags
-    nan_value = params['sr_nan_value'] if 'sr_nan_value' in params.keys() else 0.0 
-    self.buildSupports(_df, nan_value)
-    self.buildResistances(_df, nan_value)
+    self.buildSupports(_df)
+    self.buildResistances(_df)
 
     # build dynamic support-resistance of channel based on previous zigzags
     nan_value = params['channel_nan_value'] if 'channel_nan_value' in params.keys() else 0.0 
@@ -218,10 +219,11 @@ class FuzzyMarketState():
 
     # build trend detector based on different indicators
     nan_value = params['trend_nan_value'] if 'trend_nan_value' in params.keys() else 0.0
-    fibo_level = params['trend_fibo_level'] if 'trend_fibo_level' in params.keys() else 0.04 
-    self.buildTrends(_df, nan_value)
+    trend_filters=params['trend_filters'] if 'trend_filters' in params.keys() else {'sma-trend':0.75, 'zigzag-trend':0.15, 'fibo-trend':0.1}
+    self.buildTrends(_df, trend_filters, nan_value)
 
     # build divergence detector based on zigzag, macd and rsi
+    nan_value = params['div_nan_value'] if 'div_nan_value' in params.keys() else 0.0
     self.buildDivergences(_df, nan_value)
     
     # remove NaN values and reindex from sample 0
@@ -239,7 +241,7 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def buildZigzag(self, df, minbars, bb_period, bb_dev, bb_sma, nan_value):
+  def buildZigzag(self, df, minbars, bb_period, bb_dev, bb_sma, nan_value, dropna=True):
     """ Builds zigzag indicator
 
       Keyword arguments:
@@ -260,6 +262,7 @@ class FuzzyMarketState():
                                   bb_dev    = bb_dev,
                                   bb_sma    = bb_sma,
                                   nan_value = nan_value,
+                                  dropna    = dropna,
                                   level     = self.__logger.level)
     # add columns for trend detection using zigzag
     _df['ZZ_BULLISH_TREND'] = _df.apply(lambda x: 1 if x.P1 > x.P3 and x.P3 > x.P5 and x.P2 > x.P4 else 0, axis= 1)
@@ -335,18 +338,27 @@ class FuzzyMarketState():
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
   def build3MovingAverages( self, df, 
-                              ma_fast_applied, ma_fast_period, ma_fast_type, 
-                              ma_mid_applied, ma_mid_period, ma_mid_type, 
-                              ma_slow_applied, ma_slow_period, ma_slow_type):
+                            ma_fast_applied, ma_fast_period, ma_fast_type, 
+                            ma_mid_applied, ma_mid_period, ma_mid_type, 
+                            ma_slow_applied, ma_slow_period, ma_slow_type,
+                            trend_filters={'price-slow': 0.5, 'price-mid': 0.3, 'price-fast': 0.2}):
     """ Builds different moving averages according with the type and periods
 
       Keyword arguments:
         df -- dataframe
-        ma_x_applied: Price to apply MA
-        ma_x_type: MA type 
-        ma_x_period: MA period
+        ma_x_applied -- Price to apply MA
+        ma_x_type -- MA type 
+        ma_x_period -- MA period
+        trend_filter -- List of Filters to calculate trend strength
+          filter: {'price-slow': 0.5} -- This means that price above slow ma gives a strength of +0.5 bullish-trend
+                                          and price below slow ma gives a strength of +0.5 bearish-trend
       Return:
-        _ma_list -- List of SMA 
+        dict -- Dictionary with all SMA series:
+          sma_fast
+          sma_mid
+          sma_slow
+          sma_bullish_trend
+          sma_bearish_trend
     """
     if ma_fast_type == 'EMA':
       ma_fast = talib.EMA(df[ma_fast_applied], timeperiod=ma_fast_period)
@@ -364,29 +376,32 @@ class FuzzyMarketState():
     df['SMA_FAST']  = ma_fast
     df['SMA_MID']   = ma_mid
     df['SMA_SLOW']  = ma_slow
-    def fn_strength(x, level):
-      strength = 0
-      if level==1:
-        if x.CLOSE > x.SMA_SLOW:
-          strength += 0.2
-        if x.CLOSE > x.SMA_MID:
-          strength += 0.3
-        if x.CLOSE > x.SMA_FAST:
-          strength += 0.5
-      else:
-        if x.CLOSE < x.SMA_SLOW:
-          strength += 0.2
-        if x.CLOSE < x.SMA_MID:
-          strength += 0.3
-        if x.CLOSE < x.SMA_FAST:
-          strength += 0.5
-      return strength
-    df['SMA_BULLISH_TREND'] = df.apply(lambda x: fn_strength(x, 1), axis=1)
-    df['SMA_BEARISH_TREND'] = df.apply(lambda x: fn_strength(x, 2), axis=1)
+    df['SMA_BULLISH_TREND']  = 0.0
+    df['SMA_BEARISH_TREND']  = 0.0
 
-    return {'sma_fast': ma_fast, 
-            'sma_mid': ma_mid, 
-            'sma_slow': ma_slow,
+    def fn_strength(x, df):
+      bull_strength = 0.0
+      bear_strength = 0.0
+      if x.LOW > x.SMA_SLOW:
+        bull_strength = bull_strength + trend_filters['price-slow']
+        if x.LOW > x.SMA_MID:
+          bull_strength = bull_strength + trend_filters['price-mid']
+        if x.LOW > x.SMA_FAST:
+          bull_strength = bull_strength + trend_filters['price-fast']
+      elif x.HIGH < x.SMA_SLOW:
+        bear_strength = bear_strength + trend_filters['price-slow']
+        if x.HIGH < x.SMA_MID:
+          bear_strength = bear_strength + trend_filters['price-mid']
+        if x.HIGH < x.SMA_FAST:
+          bear_strength = bear_strength + trend_filters['price-fast']
+      df.at[x.name, 'SMA_BULLISH_TREND']  = bull_strength
+      df.at[x.name, 'SMA_BEARISH_TREND']  = bear_strength
+
+    df.apply(lambda x: fn_strength(x, df), axis=1)    
+
+    return {'sma_fast': df['SMA_FAST'], 
+            'sma_mid': df['SMA_MID'], 
+            'sma_slow': df['SMA_SLOW'],
             'sma_bullish_trend': df['SMA_BULLISH_TREND'],
             'sma_bearish_trend': df['SMA_BEARISH_TREND']}
 
@@ -440,62 +455,40 @@ class FuzzyMarketState():
   
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def buildSupports(self, df, nan_value):
-    """ Builds 2 main supports based on current zigzag trend points
+  def buildSupports(self, df, nan_value = 0.0):
+    """ Builds validated supports through a 4-point zigzag
 
       Keyword arguments:
         df -- dataframe
-        nan_value -- NaN value for empty results
       Return:
-        support1,support2 -- Two main support levels
+        supports -- Serie
     """    
-    def fn_support(x, df, level, nan_value):
-      if x.ZZ_BULLISH_TREND == 1:
-        if x.P1 > x.P2:
-          if level == 1:
-            return x.P2
-          else:
-            return x.P4
-        else:
-          if level == 1:
-            return x.P1
-          else:
-            return x.P3
-      return nan_value
-     
-    df['SUPPORT_1'] = df.apply(lambda x: fn_support(x, df, 1, nan_value), axis=1)  
-    df['SUPPORT_2'] = df.apply(lambda x: fn_support(x, df, 2, nan_value), axis=1)  
-    return {'support_1': df['SUPPORT_1'], 'support_2': df['SUPPORT_2']}    
+    def fn_support(x, df):
+      if x.ZIGZAG > x.P2 and x.P2 > x.P1 and  x.P1 > x.P3:
+        df.at[x.P3_idx, 'SUPPORTS'] = x.P3
+    
+    df['SUPPORTS'] = nan_value
+    df.apply(lambda x: fn_support(x, df), axis=1)  
+    return df['SUPPORTS']   
 
   
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def buildResistances(self, df, nan_value):
-    """ Builds 2 main resistances based on current zigzag trend points
+  def buildResistances(self, df, nan_value = 0.0):
+    """ Builds validated resistances through 4-point zigzag
 
       Keyword arguments:
-        df -- dataframe
-        nan_value -- NaN value for empty results
+        df -- dataframe        
       Return:
-        resist1,resist2 -- Two main resistance levels
+        resistances -- Serie
     """
-    def fn_resistance(x, df, level, nan_value):
-      if x.ZZ_BEARISH_TREND == 1:
-        if x.P1 > x.P2:
-          if level == 1:
-            return x.P1
-          else:
-            return x.P3
-        else:
-          if level == 1:
-            return x.P2
-          else:
-            return x.P4
-      return nan_value
-     
-    df['RESISTANCE_1'] = df.apply(lambda x: fn_resistance(x, df, 1, nan_value), axis=1)  
-    df['RESISTANCE_2'] = df.apply(lambda x: fn_resistance(x, df, 2, nan_value), axis=1)  
-    return {'resistance_1': df['RESISTANCE_1'], 'resistance_2': df['RESISTANCE_2']}   
+    def fn_resistance(x, df):
+      if x.ZIGZAG < x.P2 and x.P2 < x.P1 and  x.P1 < x.P3:
+        df.at[x.P3_idx, 'RESISTANCES'] = x.P3      
+    
+    df['RESISTANCES'] = 0.0
+    df.apply(lambda x: fn_resistance(x, df), axis=1)  
+    return df['RESISTANCES']   
 
   
   #-------------------------------------------------------------------
@@ -542,45 +535,37 @@ class FuzzyMarketState():
         FIBO_TREND_DETECTOR: provides trend feedback according with fibo retracements
         and extensions.
 
-        Trend will have different strength [0..1] depending on which indicators are satisfied:
-        strength = 0.0 => None indicators are satisfied
-        strength = 1.0 => All indicators are satisfied
-        strenght + 0.5 => SMA_TREND is satisfied
-        strenght + 0.3 => ZIGZAG_TREND is satisfied
-        strenght + 0.2 => FIBO_TREND is satisfied
-
       Keyword arguments:
         df -- dataframe
+        filters -- filters for trend strength: sma-trend, zigzag-trend, fibo-trend
         nan_value -- NaN value for empty results
         fibo_tol -- Tolerance % around fibo levels
       Return:
         up_trend, down_trend -- Series containing strength of each trend
     """    
     _fibo_tol = 0.04
-    def fn_trend(x, df, level, nan_value, fibo_tol, filters):
-      strength = 0.0
-      if level == 1:
-        if 'SMA_TRENDS' in filters and x.SMA_BULLISH_TREND == 1:
-          strength += 0.5
-        if 'ZIZZAG_TRENDS' in filters and x.ZZ_BULLISH_TREND == 1:
-          strength += 0.3
-        if 'FIBO_TRENDS' in filters and x.P1 > x.P2 and x.FIBO_CURR > (0.236-fibo_tol) and (x.FIBO_CURR < 0.618+fibo_tol):
-          strength += 0.15
-        if 'FIBO_TRENDS' in filters and x.P1 < x.P2 and x.FIBO_CURR > (1.236-fibo_tol) and (x.FIBO_CURR < 1.618+fibo_tol):
-          strength += 0.05
-      else:
-        if 'SMA_TRENDS' in filters and x.SMA_BEARISH_TREND == 1:
-          strength += 0.5
-        if 'ZIZZAG_TRENDS' in filters and x.ZZ_BEARISH_TREND == 1:
-          strength += 0.3
-        if 'FIBO_TRENDS' in filters and x.P1 < x.P2 and x.FIBO_CURR > (0.236-fibo_tol) and (x.FIBO_CURR < 0.618+fibo_tol):
-          strength += 0.15
-        if 'FIBO_TRENDS' in filters and x.P1 > x.P2 and x.FIBO_CURR > (1.236-fibo_tol) and (x.FIBO_CURR < 1.618+fibo_tol):
-          strength += 0.05
-      return strength
+    if not 'sma-trend' in filters:
+      filters['sma-trend']=0.0
+    if not 'zigzag-trend' in filters:
+      filters['zigzag-trend']=0.0
+    if not 'fibo-trend' in filters:
+      filters['fibo-trend']=0.0
+    
+    def fn_trend(x, df, nan_value, fibo_tol, filters):
+      bull_strength = (filters['sma-trend'] * x.SMA_BULLISH_TREND) + (filters['zigzag-trend'] * x.ZZ_BULLISH_TREND)
+      bear_strength = (filters['sma-trend'] * x.SMA_BEARISH_TREND) + (filters['zigzag-trend'] * x.ZZ_BEARISH_TREND)
+      if x.P1 > x.P2 and x.FIBO_CURR > (0.236-fibo_tol) and (x.FIBO_CURR < 0.618+fibo_tol):
+        bull_strength += filters['fibo-trend']
+      elif x.P1 < x.P2 and x.FIBO_CURR > (1.236-fibo_tol) and (x.FIBO_CURR < 1.618+fibo_tol):
+        bull_strength += filters['fibo-trend']
+      if x.P1 < x.P2 and x.FIBO_CURR > (0.236-fibo_tol) and (x.FIBO_CURR < 0.618+fibo_tol):
+        bear_strength += filters['fibo-trend']
+      elif x.P1 > x.P2 and x.FIBO_CURR > (1.236-fibo_tol) and (x.FIBO_CURR < 1.618+fibo_tol):
+        bear_strength += filters['fibo-trend']
+      df.at[x.name, 'BULLISH_TREND'] = bull_strength
+      df.at[x.name, 'BEARISH_TREND'] = bear_strength
      
-    df['BULLISH_TREND'] = df.apply(lambda x: fn_trend(x, df, 1, nan_value, _fibo_tol, filters), axis=1)  
-    df['BEARISH_TREND'] = df.apply(lambda x: fn_trend(x, df, 2, nan_value, _fibo_tol, filters), axis=1)  
+    df.apply(lambda x: fn_trend(x, df, nan_value, _fibo_tol, filters), axis=1)  
     return {'bullish': df['BULLISH_TREND'], 'bearish': df['BEARISH_TREND']}   
 
 
@@ -856,6 +841,89 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
+  def plotIndicators(self):
+    """ Plot all indicators
+      Returns:
+        dict() -- dictionary with all plot traces, annotations and shapes
+    """
+    # last sample position
+    at = self.__df.index.values[-1]
+
+    # OHLC price and Zigzag
+    zz_traces = self.plotZigzag('black')
+    self.trace_ohlc = zz_traces[0]
+    self.trace_zigzag = zz_traces[1]
+
+    # Bollinger Bands
+    bb_traces = self.plotBollinger(['black', 'blue', 'red'])
+    self.trace_bollinger_up = bb_traces[1]
+    self.trace_bollinger_mid = bb_traces[2]
+    self.trace_bollinger_down = bb_traces[3]
+    self.trace_bollinger_width = bb_traces[4]
+    self.trace_bollinger_b = bb_traces[5]
+    
+    # MACD, RSI oscillators
+    osc_traces = self.plotOscillators(color=['blue','red','green'])
+    self.trace_macd_main = osc_traces[1]
+    self.trace_macd_sig = osc_traces[2]
+    self.trace_macd_hist = osc_traces[3]
+    self.trace_rsi = osc_traces[4]
+
+    # Moving averages
+    ma_traces, ma_shapes = self.plotMovingAverages(color=['blue', 'red', 'green'])
+    self.trace_ma_fast = ma_traces[1]
+    self.trace_ma_mid = ma_traces[2]
+    self.trace_ma_slow = ma_traces[3]
+    self.shapes_ma = ma_shapes
+
+    # Fibo levels
+    fibo_traces, fibo_annotations, fibo_shapes = self.plotFiboLevels(at=at, width=100, color='black')
+    self.fibo_annotations = fibo_annotations
+    self.fibo_shapes = fibo_shapes
+
+    # Supports
+    s = self.__df['SUPPORTS']
+    s = s[s != 0]
+    x1 = s.index.values[-1]
+    x2 = s.index.values[-2]
+    trace_ohlc,s1_shape = self.plotHorizontalLine(x1+1, x1, x1+100, s.iloc[-1], color='brown', width=2, dash='dashdot')
+    trace_ohlc,s2_shape = self.plotHorizontalLine(x2+1, x2, x2+100, s.iloc[-2], color='violet', width=2, dash='dashdot')
+    self.support1_shape = s1_shape
+    self.support2_shape = s2_shape
+
+    # Resistances
+    r = self.__df['RESISTANCES']
+    r = r[r != 0.0]
+    x1 = r.index.values[-1]
+    x2 = r.index.values[-2]
+    trace_ohlc,r1_shape = self.plotHorizontalLine(x1+1, x1, x1+100, r.iloc[-1], color='brown', width=2, dash='dashdot')
+    trace_ohlc,r2_shape = self.plotHorizontalLine(x2+1, x2, x2+100, r.iloc[-2], color='violet', width=2, dash='dashdot')
+    self.resistance1_shape = r1_shape
+    self.resistance2_shape = r2_shape
+
+    # Channel
+    _upperline = self.__df['CHANNEL_UPPER_LIMIT']
+    _bottomline = self.__df['CHANNEL_LOWER_LIMIT']
+    _upperline = _upperline[_upperline != '']
+    _bottomline = _bottomline[_bottomline != '']
+    _ux = _upperline.index.values[-1]
+    _bx = _bottomline.index.values[-1]
+    _ulast = _upperline.iloc[-1]
+    _blast = _bottomline.iloc[-1]
+    x = _ux+1
+    trace_ohlc, ch_shapes = self.plotChannel(x, extended=100, color='black', width=1, dash='dashdot')
+    self.channel_shapes = ch_shapes
+
+    # Trend
+    trace_ohlc, trend_shapes = self.plotTrends(nan_value=0.0)
+    self.trend_shapes = trend_shapes
+
+    # Divergences
+    trace_ohlc, trace_macd_main, trace_rsi, div_shapes = self.plotDivergences(color='blue', nan_value = 0.0)
+    self.ohlc_macd_rsi_shapes = div_shapes
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
   def plotZigzag(self, color='black'):
     """ Plot Zigzag withing OHLC candlesticks
       Arguments:
@@ -975,30 +1043,45 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def plotFiboLevels(self, at=-1, color='black'):
+  def plotFiboLevels(self, at=-1, width = 100, color='black'):
     """ Plot fibolevels for sample at index 'at'
       Arguments:
         at -- sample to plot
+        width -- line size
         color -- color 
       Returns:
         fibo_trace, fibo_anotations -- Trace and anotations for sample 
     """
     fibo_df = self.__df[:at].copy()
+    _x0 = fibo_df.index.values[-1]
     trace_ohlc = go.Ohlc(x=fibo_df.index.values, open=fibo_df.OPEN, high=fibo_df.HIGH, low=fibo_df.LOW, close=fibo_df.CLOSE, name='Candlestick')
     fibo_anotations =[
-      dict(x=fibo_df.index.values[-1], y=fibo_df.CLOSE.iloc[-1], xref='x', yref='y', text='{}'.format(fibo_df.FIBO_CURR.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_023.iloc[-1], xref='x', yref='y', text=' 23%:{}'.format(fibo_df.FIBO_023.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_038.iloc[-1], xref='x', yref='y', text=' 38%:{}'.format(fibo_df.FIBO_038.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_050.iloc[-1], xref='x', yref='y', text=' 50%:{}'.format(fibo_df.FIBO_050.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_061.iloc[-1], xref='x', yref='y', text=' 61%:{}'.format(fibo_df.FIBO_061.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_078.iloc[-1], xref='x', yref='y', text=' 78%:{}'.format(fibo_df.FIBO_078.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_123.iloc[-1], xref='x', yref='y', text='123%:{}'.format(fibo_df.FIBO_123.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_138.iloc[-1], xref='x', yref='y', text='138%:{}'.format(fibo_df.FIBO_138.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_150.iloc[-1], xref='x', yref='y', text='150%:{}'.format(fibo_df.FIBO_150.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_161.iloc[-1], xref='x', yref='y', text='161%:{}'.format(fibo_df.FIBO_161.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom"),
-      dict(x=fibo_df.index.values[-1], y=fibo_df.FIBO_178.iloc[-1], xref='x', yref='y', text='178%:{}'.format(fibo_df.FIBO_178.iloc[-1]), showarrow=False, arrowhead=0, ax=40, ay=0, xanchor = "left", yanchor = "bottom")
+      dict(x=_x0, y=fibo_df.CLOSE.iloc[-1], xref='x', yref='y', text='{}'.format(fibo_df.FIBO_CURR.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_023.iloc[-1], xref='x', yref='y', text=' 23%:{}'.format(fibo_df.FIBO_023.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_038.iloc[-1], xref='x', yref='y', text=' 38%:{}'.format(fibo_df.FIBO_038.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_050.iloc[-1], xref='x', yref='y', text=' 50%:{}'.format(fibo_df.FIBO_050.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_061.iloc[-1], xref='x', yref='y', text=' 61%:{}'.format(fibo_df.FIBO_061.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_078.iloc[-1], xref='x', yref='y', text=' 78%:{}'.format(fibo_df.FIBO_078.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_123.iloc[-1], xref='x', yref='y', text='123%:{}'.format(fibo_df.FIBO_123.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_138.iloc[-1], xref='x', yref='y', text='138%:{}'.format(fibo_df.FIBO_138.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_150.iloc[-1], xref='x', yref='y', text='150%:{}'.format(fibo_df.FIBO_150.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_161.iloc[-1], xref='x', yref='y', text='161%:{}'.format(fibo_df.FIBO_161.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom"),
+      dict(x=_x0, y=fibo_df.FIBO_178.iloc[-1], xref='x', yref='y', text='178%:{}'.format(fibo_df.FIBO_178.iloc[-1]), showarrow=False, arrowhead=0, ax=0, ay=0, xanchor = "left", yanchor = "bottom")
     ]
-    return trace_ohlc, fibo_anotations
+    fibo_shapes = [
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_CURR.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_CURR.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_023.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_023.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_038.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_038.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_050.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_050.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_061.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_061.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_078.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_078.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_123.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_123.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_138.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_138.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_150.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_150.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_161.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_161.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+      {'type': 'line', 'x0': _x0, 'y0': fibo_df.FIBO_178.iloc[-1], 'x1': _x0+width, 'y1': fibo_df.FIBO_178.iloc[-1], 'line': {'color': color, 'width': 1, 'dash': 'dashdot'}},     
+    ]
+    return trace_ohlc, fibo_anotations, fibo_shapes
     
 
     trace_fast = go.Scatter(x=self.__df.index.values, y=self.__df.SMA_FAST, name='SMA_fast', line=scatter.Line(color=color[0], width=1))
@@ -1011,10 +1094,12 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def plotHorizontalLine(self, at, value, color='black', width=2, dash='dashdot'):
+  def plotHorizontalLine(self, at, x0, x1, value, color='black', width=2, dash='dashdot'):
     """ Plot Horizontal line (Support & Resistance) at any given position
       Arguments:
         at -- sample to plot
+        x0 -- idx from line start
+        x1 -- idx to line end
         value -- value of the horizontal line
         color -- color 
         width -- line width
@@ -1024,7 +1109,7 @@ class FuzzyMarketState():
     """
     h_df = self.__df[:at].copy()
     trace_ohlc = go.Ohlc(x=h_df.index.values, open=h_df.OPEN, high=h_df.HIGH, low=h_df.LOW, close=h_df.CLOSE, name='Candlestick')
-    h_shape = {'type': 'line', 'x0': 0, 'y0': value, 'x1': at, 'y1': value, 'line': {'color': color, 'width': width, 'dash': dash}}
+    h_shape = {'type': 'line', 'x0': x0, 'y0': value, 'x1': x1, 'y1': value, 'line': {'color': color, 'width': width, 'dash': dash}}
     return trace_ohlc, h_shape
 
 
@@ -1171,100 +1256,100 @@ class FuzzyMarketState():
         # process div-markers
         if x.DIV_DOUB_REG_BEAR_MACD == 1:
           _x0 = x.DIV_DOUB_REG_BEAR_MACD_FROM
-          self.macd_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_DOUB_REG_BEAR_RSI == 1:
           _x0 = x.DIV_DOUB_REG_BEAR_RSI_FROM
-          self.rsi_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_REG_BEAR_MACD == 1:
           _x0 = x.DIV_REG_BEAR_MACD_FROM
-          self.macd_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_REG_BEAR_RSI == 1:
           _x0 = x.DIV_REG_BEAR_RSI_FROM
-          self.rsi_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_DOUB_REG_BULL_MACD == 1:
           _x0 = x.DIV_DOUB_REG_BULL_MACD_FROM
-          self.macd_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_DOUB_REG_BULL_RSI == 1:
           _x0 = x.DIV_DOUB_REG_BULL_RSI_FROM
-          self.rsi_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_REG_BULL_MACD == 1:
           _x0 = x.DIV_REG_BULL_MACD_FROM
-          self.macd_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_REG_BULL_RSI == 1:
           _x0 = x.DIV_REG_BULL_RSI_FROM
-          self.rsi_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_DOUB_HID_BEAR_MACD == 1:
           _x0 = x.DIV_DOUB_HID_BEAR_MACD_FROM
-          self.macd_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_DOUB_HID_BEAR_RSI == 1:
           _x0 = x.DIV_DOUB_HID_BEAR_RSI_FROM
-          self.rsi_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_HID_BEAR_MACD == 1:
           _x0 = x.DIV_HID_BEAR_MACD_FROM
-          self.macd_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_HID_BEAR_RSI == 1:
           _x0 = x.DIV_HID_BEAR_RSI_FROM
-          self.rsi_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_DOUB_HID_BULL_MACD == 1:
           _x0 = x.DIV_DOUB_HID_BULL_MACD_FROM
-          self.macd_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_DOUB_HID_BULL_RSI == 1:
           _x0 = x.DIV_DOUB_HID_BULL_RSI_FROM
-          self.rsi_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 3, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+                                    'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_HID_BULL_MACD == 1:
           _x0 = x.DIV_HID_BULL_MACD_FROM
-          self.macd_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
         if x.DIV_HID_BULL_RSI == 1:
           _x0 = x.DIV_HID_BULL_RSI_FROM
-          self.rsi_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})   
-          self.ohlc_shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.ZIGZAG.iloc[_x0], 'x1': x.name, 'y1': x.ZIGZAG, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': dashdot}})
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})
 
         # process div-fill-colors
         if x.BULLISH_DIVERGENCE != nan_value and self.bullx0 == 0:        
@@ -1274,12 +1359,10 @@ class FuzzyMarketState():
         elif x.BULLISH_DIVERGENCE == self.bullval and self.bullx0 != 0:        
           self.bullx1 = x.name
         elif x.BULLISH_DIVERGENCE != self.bullval and self.bullx0 != 0:
-          _shape = {'type': 'rect', 'xref': 'x', 'yref': 'paper',
+          _shape = {'type': 'rect', 'xref': 'x1', 'yref': 'paper',
                     'x0': self.bullx0,'y0': 0,'x1': self.bullx1,'y1': 1,
                     'fillcolor': 'green', 'opacity': self.bullval * 0.5, 'line':{'width':0,}}
-          self.ohlc_shapes.append(_shape)
-          self.macd_shapes.append(_shape)
-          self.rsi_shapes.append(_shape)
+          self.shapes.append(_shape)
           if x.BULLISH_DIVERGENCE != nan_value:
             self.bullx0 = x.name
             self.bullx1 = x.name
@@ -1295,12 +1378,10 @@ class FuzzyMarketState():
         elif x.BEARISH_DIVERGENCE == self.bearval and self.bearx0 != 0:
           self.bearx1 = x.name
         elif x.BEARISH_DIVERGENCE != self.bearval and self.bearx0 != 0:
-          _shape = {'type': 'rect', 'xref': 'x', 'yref': 'paper',
+          _shape = {'type': 'rect', 'xref': 'x1', 'yref': 'paper',
                     'x0': self.bearx0,'y0': 0,'x1': self.bearx1,'y1': 1,
                     'fillcolor': 'red', 'opacity': self.bearval * 0.5, 'line':{'width':0,}}        
-          self.ohlc_shapes.append(_shape)
-          self.macd_shapes.append(_shape)
-          self.rsi_shapes.append(_shape)
+          self.shapes.append(_shape)
           if x.BEARISH_DIVERGENCE != nan_value:
             self.bearx0 = x.name
             self.bearx1 = x.name
@@ -1316,48 +1397,5 @@ class FuzzyMarketState():
     trace_rsi = go.Scatter(x=self.__df.index.values, y=self.__df.RSI, name='RSI', line=scatter.Line(color=color, width=1))
 
     ohlc_shapes = [sb.shapes]
-    return trace_ohlc, trace_macd_main, trace_rsi, sb.ohlc_shapes, sb.macd_shapes, sb.rsi_shapes
+    return trace_ohlc, trace_macd_main, trace_rsi, sb.shapes
              
-
-
-  #-------------------------------------------------------------------
-  #-------------------------------------------------------------------
-  def drawIndicator(self):
-    _divergences = self.__df[(self.__df.DIVERGENCE_MACD == self.__df.DIVERGENCE_RSI) & (self.__df.DIVERGENCE_MACD != 'none')][['TIME','OPEN','HIGH','LOW','CLOSE','ZIGZAG','ACTION','DIVERGENCE_MACD', 'DIVERGENCE_MACD_FROM']]
-
-    def buildDivergenceSignal(row, df, fig):
-      _from = row.DIVERGENCE_MACD_FROM
-      _to = row.name  
-      _trace_price = go.Scatter(x=np.array([_from,_to]), y=np.array([df.ZIGZAG[_from], df.ZIGZAG[_to]]), line=scatter.Line(color='blue', width=1))
-      fig.append_trace(_trace_price, 1, 1)
-      _trace_macd = go.Scatter(x=np.array([_from,_to]), y=np.array([df.MACD_main[_from], df.MACD_main[_to]]), line=scatter.Line(color='black', width=1))
-      fig.append_trace(_trace_macd, 2, 1)
-      _trace_rsi = go.Scatter(x=np.array([_from,_to]), y=np.array([df.RSI[_from], df.RSI[_to]]), line=scatter.Line(color='black', width=1))
-      fig.append_trace(_trace_rsi, 3, 1)
-
-    # Plot ohlc,zigzag, MACD and RSI
-    # setup plotting figure with 3 rows and 1 column
-    fig = plotly.tools.make_subplots(rows=3, cols=1, subplot_titles=('Price', 'Oscillators'), shared_xaxes=True, vertical_spacing=0.1)
-
-    trace_ohlc = go.Ohlc(x=self.__df.index.values, open=self.__df.OPEN, high=self.__df.HIGH, low=self.__df.LOW, close=self.__df.CLOSE, name='Candlestick')
-    fig.append_trace(trace_ohlc, 1, 1)
-
-    _dfz = self.__df[self.__df.ZIGZAG > 0].copy()
-    trace_zigzag = go.Scatter(x=_dfz.reset_index()['index'], y=_dfz.ZIGZAG, name='zigzag', line=scatter.Line(color='black', width=1))
-    fig.append_trace(trace_zigzag, 1, 1)
-
-    trace_macd = go.Scatter(x=self.__df.index.values, y=self.__df.MACD_main, name='macd', line=scatter.Line(color='blue', width=1))
-    fig.append_trace(trace_macd, 2, 1)
-
-    trace_rsi = go.Scatter(x=self.__df.index.values, y=self.__df.RSI, name='rsi', line=scatter.Line(color='red', width=1))
-    fig.append_trace(trace_rsi, 3, 1)
-
-    # add signals of divergence to both oscillators and price
-    _divergences.apply(lambda x: buildDivergenceSignal(x, self.__df, fig), axis=1)
-
-    fig['layout'].update(height=600, title='Divergences')
-
-    # reference result
-    self.__fig = fig
-    return self.__fig
-

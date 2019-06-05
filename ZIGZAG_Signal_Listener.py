@@ -70,7 +70,7 @@ class ZIGZAG_Signal_Listener():
     self.__events = ZIGZAG_Events()
     self.__logger.info('Created!')
 
-  def ZIGZAG(self, df, minbars=12, bb_period=20, bb_dev = 2.0, bb_sma=[50], nan_value = 0.0, level=logging.WARN):    
+  def ZIGZAG(self, df, minbars=12, bb_period=20, bb_dev = 2.0, bb_sma=[50], nan_value = 0.0, dropna=True, level=logging.WARN):    
     """Builds a ZIGZAG indicator based on Bollinger Bands overbought and oversell signals
 
     Keyword arguments:
@@ -80,6 +80,7 @@ class ZIGZAG_Signal_Listener():
       bb_dev -- Bollinger bands deviation (default 2.0)
       bb_sma -- List of SMA timeperiod for Bands Width SMA calculation
       nan_value -- Values for zigzag indicator during search phase (default 0.0)
+      dropna -- Flag to delete NaN values, else fill them with nan_value
       level -- logging level (default WARN)
     """
     class ActionCtrl():
@@ -261,8 +262,11 @@ class ZIGZAG_Signal_Listener():
     boll_b[np.isnan(boll_b)]=0.5
     boll_b[np.isinf(boll_b)]=0.5
     _df['BOLLINGER_b'] = boll_b
-    _df.dropna(inplace=True)
-    _df.reset_index(drop=True, inplace=True)
+    if dropna:
+      _df.dropna(inplace=True)
+      _df.reset_index(drop=True, inplace=True)
+    else:
+      _df.fillna(value=nan_value, inplace=True)
 
     # Initially no actions are in progress, record first high and low values creating an ActionCtrl object
     action = ActionCtrl(
