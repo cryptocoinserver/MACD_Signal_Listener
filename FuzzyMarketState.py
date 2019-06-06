@@ -1398,4 +1398,16 @@ class FuzzyMarketState():
 
     ohlc_shapes = [sb.shapes]
     return trace_ohlc, trace_macd_main, trace_rsi, sb.shapes
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def updateIndicators(self, new_bar, nan_value):    
+    """ Updates indicator dataframe with a new OHLC bar
+      Keyword Argumnets:
+        new_bar -- New OHLC bar with time,open,high,low,close columns
+        nan_value -- NaN value filler
+    """
+    new_row = self.__df.iloc[-1].copy()
+    
              
