@@ -1410,4 +1410,5 @@ class FuzzyMarketState():
     """
     new_row = self.__df.iloc[-1].copy()
     
+
              
