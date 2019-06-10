@@ -43,6 +43,7 @@
 # Librerías de manejo de datos 
 import pandas as pd
 import numpy as np
+import skfuzzy.control as ctrl
 
 ####################################################################################
 # Librerías de visualización
@@ -57,6 +58,12 @@ import plotly.tools as tls
 # TA-Lib: instalación y carga de la librería
 import talib
 from ZIGZAG_Signal_Listener import ZIGZAG_Signal_Listener
+
+####################################################################################
+# Fuzzy logic libs
+from FuzzyLib import Fuzzifier, FuzzyVar
+
+
 
 ####################################################################################
 # Otras utilidades
@@ -75,7 +82,6 @@ import logging
 
 class FuzzyMarketState():
   def __init__(self, level=logging.WARN):
-    self.__idx_for_update = 0    
     self.__logger = logging.getLogger(__name__)
     self.__logger.setLevel(level)
     self.__logger.info('Created!')
@@ -112,7 +118,7 @@ class FuzzyMarketState():
     _df['TIME'] = _df['DATE'] + '  ' + _df['TIME'] 
     _df['TIME'] = _df['TIME'].map(lambda x: datetime.datetime.strptime(x, '%Y.%m.%d %H:%M:%S'))  
     _df['TIME'] = pd.to_datetime(_df['TIME'])
-    self.__df = _df.copy()
+    self.__df = _df.drop(columns=['DATE'])
     self.__logger.debug('loaded {} rows from {} to {}'.format(self.__df.shape[0], _df['TIME'].iloc[0], _df['TIME'].iloc[-1]))
     return self.__df
 
@@ -178,7 +184,6 @@ class FuzzyMarketState():
     bb_sma    = params['bb_sma'] if 'bb_sma' in params.keys() else [100]
     nan_value = params['zz_nan_value'] if 'zz_nan_value' in params.keys() else 0.0 
     _df = self.buildZigzag(self.__df, minbars, bb_period, bb_dev, bb_sma, nan_value)
-    self.__idx_for_update = max(self.__idx_for_update, 100+1)
 
     # build oscillators (includes MACD and RSI)
     macd_applied  = params['macd_applied'] if 'macd_applied' in params.keys() else 'CLOSE'
@@ -188,7 +193,6 @@ class FuzzyMarketState():
     rsi_applied   = params['rsi_applied'] if 'rsi_applied' in params.keys() else 'CLOSE'
     rsi_period    = params['rsi_period'] if 'rsi_period' in params.keys() else 14     
     self.buildOscillators(_df, macd_applied, macd_fast, macd_slow, macd_sig, rsi_applied, rsi_period)
-    self.__idx_for_update = max(self.__idx_for_update, 26+1)
 
     # build 3 moving averages (includes SMA50, SMA100, SMA200)
     ma_fast_applied = params['ma_fast_applied'] if 'ma_fast_applied' in params.keys() else 'CLOSE'
@@ -206,7 +210,6 @@ class FuzzyMarketState():
                               ma_mid_applied, ma_mid_period, ma_mid_type,
                               ma_slow_applied, ma_slow_period, ma_slow_type,
                               ma_trend_filters)
-    self.__idx_for_update = max(self.__idx_for_update, 200+1)
 
 
     # build fibonacci retracement and extensions
@@ -229,8 +232,7 @@ class FuzzyMarketState():
 
     # build divergence detector based on zigzag, macd and rsi
     nan_value = params['div_nan_value'] if 'div_nan_value' in params.keys() else 0.0
-    self.buildDivergences(_df, nan_value)
-    self.__idx_for_update = 2 * (_df.index.values[-1] - min(_df.index.values[-self.__idx_for_update], _df.P6_idx.iloc[-1]))
+    self.buildDivergences(_df, nan_value)    
     
     # remove NaN values and reindex from sample 0
     _df.dropna(inplace=True)
@@ -538,7 +540,7 @@ class FuzzyMarketState():
   
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def buildTrends(self, df, filters, nan_value):
+  def buildTrends(self, df, filters=[], nan_value=0.0):
     """ Builds a trend detector based on different indicators, as follows:
         ZIGZAG_TREND_DETECTOR: provides a trend feedback according with its last
         zigzag points.
@@ -1440,15 +1442,85 @@ class FuzzyMarketState():
     self.__df = self.__df.append(new_row, ignore_index=True)
 
     # rebuild indicators
-    self.__logger.debug('Updating from last {} rows'.format(self.__idx_for_update))
-    self.__df = self.__df[-self.__idx_for_update:].copy()
+    _idx_for_update = max(500 , (self.__df.index.values[-1] - self.__df.P6_idx.iloc[-1]))
+    self.__logger.debug('Updating from last {} rows'.format(_idx_for_update))
+    self.__df = self.__df[-_idx_for_update:].copy()
     self.__df.reset_index(drop=True, inplace=True)
     self.__logger.debug('Reindex idx[0]={} to idx={}'.format(self.__df.index.values[0], self.__df.index.values[-1]))
     self.buildIndicators()
     self.__df = _df_backup.append(self.__df.iloc[-1], ignore_index=True)
     return self.__df     
-      
-      
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def fuzzifyZigzag(self, timeperiod=50):
+    """ Fuzzifies zigzag indicators based on:
+      - flip duration
+      - flip range      
+      Keyword arguments:
+        timeperiod -- period to build the sinthetic fuzzy indicator
+      Return:
+        self.__df -- Updated dataframe      
+    """
+    # builds ZZ_FUZ_DURATION_1 and ZZ_FUZ_DURATION_2 columns
+    self.__logger.debug('Fuzzifying Zigzag indicators...')
+    # Get zigzags
+    df_zz = self.__df[(self.__df.ZIGZAG > 0.0) & (self.__df.ACTION.str.contains('-in-progress')==False)]
+    df_zz = df_zz[['ZIGZAG','ACTION']].copy()
+    self.__logger.debug('processing {} rows'.format(df_zz.shape[0]))
+
+    # Use index as a sample count difference between zigzags
+    _df1 = df_zz.reset_index().copy()
+    _df2 = df_zz.reset_index().shift(1).copy()
+    _df3 = df_zz.reset_index().shift(2).copy()    
+
+    # Create DURATION columns with the duration of each flip and with the previous of same direction
+    self.__logger.debug('Building fuzzy set points based on BBANDS')
+
+    _df_result = df_zz.reset_index(drop=True)
+    _df_result['ZZ_IDX'] = _df1['index']
+    _df_result['DURATION_1'] = _df1['index'] - _df2['index']
+    _df_result['DURATION_2'] = _df1['index'] - _df3['index']  
+    _df_result['d1bbup1'], _df_result['d1bbma1'], _df_result['d1bblo1'] = talib.BBANDS(_df_result.DURATION_1, timeperiod=timeperiod, nbdevup=1.0, nbdevdn=1.0, matype=0)
+    _df_result['d1bbup2'], _df_result['d1bbma2'], _df_result['d1bblo2'] = talib.BBANDS(_df_result.DURATION_1, timeperiod=timeperiod, nbdevup=2.0, nbdevdn=2.0, matype=0)    
+
+    _df_result['d2bbup1'], _df_result['d2bbma1'], _df_result['d2bblo1'] = talib.BBANDS(_df_result.DURATION_2, timeperiod=timeperiod, nbdevup=1.0, nbdevdn=1.0, matype=0)
+    _df_result['d2bbup2'], _df_result['d2bbma2'], _df_result['d2bblo2'] = talib.BBANDS(_df_result.DURATION_2, timeperiod=timeperiod, nbdevup=2.0, nbdevdn=2.0, matype=0)
+
+    
+    # Create RANGE columns with the range of each flip 
+    zrange = _df1.ZIGZAG - _df2.ZIGZAG
+    zrange_pos = zrange[zrange > 0.0]
+    zrange_neg = zrange[zrange < 0.0]
+
+    def fn_fuzzify(x, df, logger):
+      logger.debug('fuzzifying row[{}]=> crisp={}'.format(x.name, x.DURATION_1))
+      f_sets = [{'type':'left-edge',    'p0': x.d1bblo2, 'p1': x.d1bblo1},
+                {'type':'internal-3pt', 'p0': x.d1bblo2, 'p1': x.d1bblo1, 'p2': x.d1bbma1},
+                {'type':'internal-3pt', 'p0': x.d1bblo1, 'p1': x.d1bbma1, 'p2': x.d1bbup1},
+                {'type':'internal-3pt', 'p0': x.d1bbma1, 'p1': x.d1bbup1, 'p2': x.d1bbup2},
+                {'type':'right-edge'  , 'p0': x.d1bbup1, 'p1': x.d1bbup2}]
+      fz1 = Fuzzifier.fuzzify(x.DURATION_1, f_sets)
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G0'] = fz1[0]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G1'] = fz1[1]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G2'] = fz1[2]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G3'] = fz1[3]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G4'] = fz1[4]
+      f_sets = [{'type':'left-edge',    'p0': x.d2bblo2, 'p1': x.d2bblo1},
+                {'type':'internal-3pt', 'p0': x.d2bblo2, 'p1': x.d2bblo1, 'p2': x.d2bbma1},
+                {'type':'internal-3pt', 'p0': x.d2bblo1, 'p1': x.d2bbma1, 'p2': x.d2bbup1},
+                {'type':'internal-3pt', 'p0': x.d2bbma1, 'p1': x.d2bbup1, 'p2': x.d2bbup2},
+                {'type':'right-edge'  , 'p0': x.d2bbup1, 'p1': x.d2bbup2}]
+      fz2 = Fuzzifier.fuzzify(x.DURATION_2, f_sets)
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G0'] = fz2[0]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G1'] = fz2[1]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G2'] = fz2[2]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G3'] = fz2[3]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G4'] = fz2[4]
+    _df_result.apply(lambda x: fn_fuzzify(x, self.__df, self.__logger), axis=1)
+
+    return self.__df
     
 
              
