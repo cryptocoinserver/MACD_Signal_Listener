@@ -74,7 +74,8 @@ import logging
 ####################################################################################
 
 class FuzzyMarketState():
-  def __init__(self, level=logging.WARN):    
+  def __init__(self, level=logging.WARN):
+    self.__idx_for_update = 0    
     self.__logger = logging.getLogger(__name__)
     self.__logger.setLevel(level)
     self.__logger.info('Created!')
@@ -177,6 +178,7 @@ class FuzzyMarketState():
     bb_sma    = params['bb_sma'] if 'bb_sma' in params.keys() else [100]
     nan_value = params['zz_nan_value'] if 'zz_nan_value' in params.keys() else 0.0 
     _df = self.buildZigzag(self.__df, minbars, bb_period, bb_dev, bb_sma, nan_value)
+    self.__idx_for_update = max(self.__idx_for_update, 100+1)
 
     # build oscillators (includes MACD and RSI)
     macd_applied  = params['macd_applied'] if 'macd_applied' in params.keys() else 'CLOSE'
@@ -186,6 +188,7 @@ class FuzzyMarketState():
     rsi_applied   = params['rsi_applied'] if 'rsi_applied' in params.keys() else 'CLOSE'
     rsi_period    = params['rsi_period'] if 'rsi_period' in params.keys() else 14     
     self.buildOscillators(_df, macd_applied, macd_fast, macd_slow, macd_sig, rsi_applied, rsi_period)
+    self.__idx_for_update = max(self.__idx_for_update, 26+1)
 
     # build 3 moving averages (includes SMA50, SMA100, SMA200)
     ma_fast_applied = params['ma_fast_applied'] if 'ma_fast_applied' in params.keys() else 'CLOSE'
@@ -203,6 +206,8 @@ class FuzzyMarketState():
                               ma_mid_applied, ma_mid_period, ma_mid_type,
                               ma_slow_applied, ma_slow_period, ma_slow_type,
                               ma_trend_filters)
+    self.__idx_for_update = max(self.__idx_for_update, 200+1)
+
 
     # build fibonacci retracement and extensions
     nan_value = params['fibo_nan_value'] if 'fibo_nan_value' in params.keys() else 0.0
@@ -225,6 +230,7 @@ class FuzzyMarketState():
     # build divergence detector based on zigzag, macd and rsi
     nan_value = params['div_nan_value'] if 'div_nan_value' in params.keys() else 0.0
     self.buildDivergences(_df, nan_value)
+    self.__idx_for_update = 2 * (_df.index.values[-1] - min(_df.index.values[-self.__idx_for_update], _df.P6_idx.iloc[-1]))
     
     # remove NaN values and reindex from sample 0
     _df.dropna(inplace=True)
@@ -272,7 +278,7 @@ class FuzzyMarketState():
   
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def buildOscillators(self, df, macd_applied, macd_fast, macd_slow, macd_sig, rsi_applied, rsi_period):
+  def buildOscillators(self, df, macd_applied, macd_fast, macd_slow, macd_sig, rsi_applied, rsi_period, use_talib=True):
     """ Builds different oscillators like MACD and RSI
 
       Keyword arguments:
@@ -286,7 +292,13 @@ class FuzzyMarketState():
       Return:
         dict -- Dictionary with Macd and RSI common series (main, signals, ...)
     """
-    _macd_main, _macd_sig, _macd_hist = talib.MACD(df[macd_applied], fastperiod=macd_fast, slowperiod=macd_slow, signalperiod=macd_sig)
+    if not use_talib:
+      exp1 = df[macd_applied].ewm(span=macd_fast, adjust=False).mean()
+      exp2 = df[macd_applied].ewm(span=macd_slow, adjust=False).mean()
+      _macd_main = exp1-exp2
+      _macd_sig = macd.ewm(span=macd_sig, adjust=False).mean()
+    else:
+      _macd_main, _macd_sig, _macd_hist = talib.MACD(df[macd_applied], fastperiod=macd_fast, slowperiod=macd_slow, signalperiod=macd_sig)
     # add crossovers between main and zero level
     _macd_cross_zero_up = ((_macd_main > 0) & (_macd_main.shift(1) < 0 | ((_macd_main.shift(1)==0) & (_macd_main.shift(2) < 0))))
     _macd_cross_zero_dn = ((_macd_main < 0) & (_macd_main.shift(1) > 0 | ((_macd_main.shift(1)==0) & (_macd_main.shift(2) > 0))))
@@ -1402,13 +1414,41 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def updateIndicators(self, new_bar, nan_value):    
+  def updateIndicators(self, new_bar):    
     """ Updates indicator dataframe with a new OHLC bar
       Keyword Argumnets:
         new_bar -- New OHLC bar with time,open,high,low,close columns
-        nan_value -- NaN value filler
     """
+    
+    # use last row as a template for new data
     new_row = self.__df.iloc[-1].copy()
+
+    # set new_bar values to template row
+    new_row['TIME'] = new_bar['TIME']
+    new_row['OPEN']=new_bar['OPEN']
+    new_row['HIGH']=new_bar['HIGH']
+    new_row['LOW']=new_bar['LOW']
+    new_row['CLOSE']=new_bar['CLOSE']
+    new_row['VOL']=new_bar['VOL']
+    new_row['TICKVOL']=new_bar['TICKVOL']
+    new_row['SPREAD']=new_bar['SPREAD']
+
+    _df_backup = self.__df.copy()
+    self.__logger.debug('Backup from idx={} to idx={}'.format(_df_backup.index.values[0], _df_backup.index.values[-1]))
+
+    # append row to dataframe
+    self.__df = self.__df.append(new_row, ignore_index=True)
+
+    # rebuild indicators
+    self.__logger.debug('Updating from last {} rows'.format(self.__idx_for_update))
+    self.__df = self.__df[-self.__idx_for_update:].copy()
+    self.__df.reset_index(drop=True, inplace=True)
+    self.__logger.debug('Reindex idx[0]={} to idx={}'.format(self.__df.index.values[0], self.__df.index.values[-1]))
+    self.buildIndicators()
+    self.__df = _df_backup.append(self.__df.iloc[-1], ignore_index=True)
+    return self.__df     
+      
+      
     
 
              
