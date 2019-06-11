@@ -1488,13 +1488,7 @@ class FuzzyMarketState():
     _df_result['d2bbup1'], _df_result['d2bbma1'], _df_result['d2bblo1'] = talib.BBANDS(_df_result.DURATION_2, timeperiod=timeperiod, nbdevup=1.0, nbdevdn=1.0, matype=0)
     _df_result['d2bbup2'], _df_result['d2bbma2'], _df_result['d2bblo2'] = talib.BBANDS(_df_result.DURATION_2, timeperiod=timeperiod, nbdevup=2.0, nbdevdn=2.0, matype=0)
 
-    
-    # Create RANGE columns with the range of each flip 
-    zrange = _df1.ZIGZAG - _df2.ZIGZAG
-    zrange_pos = zrange[zrange > 0.0]
-    zrange_neg = zrange[zrange < 0.0]
-
-    def fn_fuzzify(x, df, logger):
+    def fn_fuzzify_duration(x, df, logger):
       logger.debug('fuzzifying row[{}]=> crisp={}'.format(x.name, x.DURATION_1))
       f_sets = [{'type':'left-edge',    'p0': x.d1bblo2, 'p1': x.d1bblo1},
                 {'type':'internal-3pt', 'p0': x.d1bblo2, 'p1': x.d1bblo1, 'p2': x.d1bbma1},
@@ -1502,25 +1496,91 @@ class FuzzyMarketState():
                 {'type':'internal-3pt', 'p0': x.d1bbma1, 'p1': x.d1bbup1, 'p2': x.d1bbup2},
                 {'type':'right-edge'  , 'p0': x.d1bbup1, 'p1': x.d1bbup2}]
       fz1 = Fuzzifier.fuzzify(x.DURATION_1, f_sets)
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1'] = x.DURATION_1
       df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G0'] = fz1[0]
       df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G1'] = fz1[1]
       df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G2'] = fz1[2]
       df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G3'] = fz1[3]
       df.at[x.ZZ_IDX, 'FUZ_DURATION_1_G4'] = fz1[4]
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_S-2'] = x.d1bblo2
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_S-1'] = x.d1bblo1
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_S0'] = x.d1bbma1
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_S+1'] = x.d1bbup1
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_1_S+2'] = x.d1bbup2
       f_sets = [{'type':'left-edge',    'p0': x.d2bblo2, 'p1': x.d2bblo1},
                 {'type':'internal-3pt', 'p0': x.d2bblo2, 'p1': x.d2bblo1, 'p2': x.d2bbma1},
                 {'type':'internal-3pt', 'p0': x.d2bblo1, 'p1': x.d2bbma1, 'p2': x.d2bbup1},
                 {'type':'internal-3pt', 'p0': x.d2bbma1, 'p1': x.d2bbup1, 'p2': x.d2bbup2},
                 {'type':'right-edge'  , 'p0': x.d2bbup1, 'p1': x.d2bbup2}]
       fz2 = Fuzzifier.fuzzify(x.DURATION_2, f_sets)
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2'] = x.DURATION_2
       df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G0'] = fz2[0]
       df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G1'] = fz2[1]
       df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G2'] = fz2[2]
       df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G3'] = fz2[3]
       df.at[x.ZZ_IDX, 'FUZ_DURATION_2_G4'] = fz2[4]
-    _df_result.apply(lambda x: fn_fuzzify(x, self.__df, self.__logger), axis=1)
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_S-2'] = x.d2bblo2
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_S-1'] = x.d2bblo1
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_S0'] = x.d2bbma1
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_S+1'] = x.d2bbup1
+      df.at[x.ZZ_IDX, 'FUZ_DURATION_2_S+2'] = x.d2bbup2
+    _df_result.apply(lambda x: fn_fuzzify_duration(x, self.__df, self.__logger), axis=1)
+
+
+    # Create RANGE columns with the range of each flip and previous 
+    _df_result = df_zz.reset_index(drop=True)
+    _df_result['ZZ_IDX'] = _df1['index']
+    _df_result['ZZ_RANGE_ABS'] = _df1.ZIGZAG - _df2.ZIGZAG
+    _df_result['r1bbup1'], _df_result['r1bbma1'], _df_result['r1bblo1'] = talib.BBANDS(_df_result['ZZ_RANGE_ABS'], timeperiod=timeperiod, nbdevup=1.0, nbdevdn=1.0, matype=0)
+    _df_result['r1bbup2'], _df_result['r1bbma2'], _df_result['r1bblo2'] = talib.BBANDS(_df_result['ZZ_RANGE_ABS'], timeperiod=timeperiod, nbdevup=2.0, nbdevdn=2.0, matype=0)    
+    def fn_fuzzify_range(x, df, logger):
+      logger.debug('fuzzifying_range row[{}]=> crisp={}'.format(x.name, x.ZZ_RANGE_ABS))
+      f_sets = [{'type':'left-edge',    'p0': x.r1bblo2, 'p1': x.r1bblo1},
+                {'type':'internal-3pt', 'p0': x.r1bblo2, 'p1': x.r1bblo1, 'p2': x.r1bbma1},
+                {'type':'internal-3pt', 'p0': x.r1bblo1, 'p1': x.r1bbma1, 'p2': x.r1bbup1},
+                {'type':'internal-3pt', 'p0': x.r1bbma1, 'p1': x.r1bbup1, 'p2': x.r1bbup2},
+                {'type':'right-edge'  , 'p0': x.r1bbup1, 'p1': x.r1bbup2}]
+      fz1 = Fuzzifier.fuzzify(x.ZZ_RANGE_ABS, f_sets)
+      df.at[x.ZZ_IDX, 'FUZ_RANGE'] = x.ZZ_RANGE_ABS
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_G0'] = fz1[0]
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_G1'] = fz1[1]
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_G2'] = fz1[2]
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_G3'] = fz1[3]
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_G4'] = fz1[4]
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_S-2'] = x.r1bblo2
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_S-1'] = x.r1bblo1
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_S0'] = x.r1bbma1
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_S+1'] = x.r1bbup1
+      df.at[x.ZZ_IDX, 'FUZ_RANGE_S+2'] = x.r1bbup2
+      
+    _df_result.apply(lambda x: fn_fuzzify_range(x, self.__df, self.__logger), axis=1)
 
     return self.__df
-    
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def plotFuzzyZigzagVariable(self, var, colors=['rgb(195, 243, 195)','rgb(245, 252, 180)','rgb(252, 180, 197)']):
+    """ Plot stacked areas as fuzzy sets evolution agains range variable
+    """
+    df_zz = self.__df[(self.__df.ZIGZAG > 0.0) & (self.__df.ACTION.str.contains('-in-progress')==False)]
+    trace_lo2 = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S-2'.format(var)], 
+                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[2]),
+                      stackgroup='one')
+    trace_lo1 = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S-1'.format(var)], 
+                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[1]),
+                      stackgroup='one')
+    trace_ma = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S0'.format(var)], 
+                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[0]),
+                      stackgroup='one')
+    trace_up1 = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S+1'.format(var)], 
+                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[1]),
+                      stackgroup='one')
+    trace_up2 = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S+2'.format(var)], 
+                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[2]),
+                      stackgroup='one')
+    trace_crisp = go.Scatter(x=df_zz.index.values, y=df_zz['FUZ_{}'.format(var)], name='fuz_{}'.format(var), line=scatter.Line(color='black', width=2))
+    return [trace_lo2, trace_lo1, trace_ma, trace_up1, trace_up2, trace_crisp]
+
 
              
