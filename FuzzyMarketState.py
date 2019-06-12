@@ -1564,22 +1564,17 @@ class FuzzyMarketState():
     """ Plot stacked areas as fuzzy sets evolution agains range variable
     """
     df_zz = self.__df[(self.__df.ZIGZAG > 0.0) & (self.__df.ACTION.str.contains('-in-progress')==False)]
-    trace_lo2 = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S-2'.format(var)], 
-                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[2]),
-                      stackgroup='one')
-    trace_lo1 = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S-1'.format(var)], 
-                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[1]),
-                      stackgroup='one')
-    trace_ma = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S0'.format(var)], 
-                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[0]),
-                      stackgroup='one')
-    trace_up1 = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S+1'.format(var)], 
-                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[1]),
-                      stackgroup='one')
-    trace_up2 = dict( x=df_zz.index.values, y=df_zz['FUZ_{}_S+2'.format(var)], 
-                      hoverinfo='x+y', mode='lines', line=dict(width=0.5, color=colors[2]),
-                      stackgroup='one')
-    trace_crisp = go.Scatter(x=df_zz.index.values, y=df_zz['FUZ_{}'.format(var)], name='fuz_{}'.format(var), line=scatter.Line(color='black', width=2))
+    trace_lo2 = go.Scatter(x=df_zz.index.values, y=df_zz['FUZ_{}_S-2'.format(var)], 
+                      fill='none', mode='lines', line=dict(width=2, color=colors[2]))
+    trace_lo1 = go.Scatter(x=df_zz.index.values, y=df_zz['FUZ_{}_S-1'.format(var)], 
+                      fill='none', mode='lines', line=dict(width=2, color=colors[1]))
+    trace_ma = go.Scatter(x=df_zz.index.values, y=df_zz['FUZ_{}_S0'.format(var)], 
+                      fill='none', mode='lines', line=dict(width=2, color=colors[0]))
+    trace_up1 = go.Scatter(x=df_zz.index.values, y=df_zz['FUZ_{}_S+1'.format(var)], 
+                      fill='none', mode='lines', line=dict(width=2, color=colors[1]))
+    trace_up2 = go.Scatter(x=df_zz.index.values, y=df_zz['FUZ_{}_S+2'.format(var)], 
+                      fill='none', mode='lines', line=dict(width=2, color=colors[2]))
+    trace_crisp = go.Scatter(x=df_zz.index.values, y=df_zz['FUZ_{}'.format(var)], name='fuz_{}'.format(var), line=scatter.Line(color='black', width=1))
     return [trace_lo2, trace_lo1, trace_ma, trace_up1, trace_up2, trace_crisp]
 
 
