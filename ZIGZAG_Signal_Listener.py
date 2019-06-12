@@ -256,9 +256,7 @@ class ZIGZAG_Signal_Listener():
     _df = df.copy()
     _df['BOLLINGER_HI'], _df['BOLLINGER_MA'], _df['BOLLINGER_LO'] = talib.BBANDS(_df.CLOSE, timeperiod=bb_period, nbdevup=bb_dev, nbdevdn=bb_dev, matype=0)
     _df['BOLLINGER_WIDTH'] = _df['BOLLINGER_HI'] - _df['BOLLINGER_LO']
-    for sma in bb_sma:
-      _df['BOLLINGER_WIDTH_SMA{}'.format(sma)] = talib.SMA(_df['BOLLINGER_WIDTH'], timeperiod=sma)
-    boll_b = (_df.CLOSE - _df['BOLLINGER_LO'])/(_df['BOLLINGER_HI'] - _df['BOLLINGER_LO'])
+    boll_b = (_df.CLOSE - _df['BOLLINGER_LO'])/_df['BOLLINGER_WIDTH']
     boll_b[np.isnan(boll_b)]=0.5
     boll_b[np.isinf(boll_b)]=0.5
     _df['BOLLINGER_b'] = boll_b
