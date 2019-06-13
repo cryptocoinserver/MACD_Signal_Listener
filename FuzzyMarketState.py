@@ -179,11 +179,10 @@ class FuzzyMarketState():
 
     # build zigzag indicator (includes BollingerBands and derivatives)   
     minbars   = params['zz_minbars'] if 'zz_minbars' in params.keys() else 12  
-    bb_period = params['bb_period'] if 'bb_period' in params.keys() else 2 
+    bb_period = params['bb_period'] if 'bb_period' in params.keys() else 20 
     bb_dev    = params['bb_dev'] if 'bb_dev' in params.keys() else 2.0
-    bb_sma    = params['bb_sma'] if 'bb_sma' in params.keys() else [100]
     nan_value = params['zz_nan_value'] if 'zz_nan_value' in params.keys() else 0.0 
-    _df = self.buildZigzag(self.__df, minbars, bb_period, bb_dev, bb_sma, nan_value)
+    _df = self.buildZigzag(self.__df, minbars, bb_period, bb_dev, nan_value)
 
     # build oscillators (includes MACD and RSI)
     macd_applied  = params['macd_applied'] if 'macd_applied' in params.keys() else 'CLOSE'
@@ -249,7 +248,7 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def buildZigzag(self, df, minbars, bb_period, bb_dev, bb_sma, nan_value, dropna=True):
+  def buildZigzag(self, df, minbars, bb_period, bb_dev, nan_value, dropna=True):
     """ Builds zigzag indicator
 
       Keyword arguments:
@@ -257,7 +256,6 @@ class FuzzyMarketState():
         zz_minbars -- Min. number of bars per flip to avoid discarding (default 12)
         bb_period -- Bollinger bands period (default 20)
         bb_dev -- Bollinger bands deviation (default 2.0)
-        bb_sma -- List of SMA timeperiod for Bands Width SMA calculation
         nan_value -- Values for zigzag indicator during search phase (default 0.0)
         zlevel -- logging level (default WARN)
       Return:
@@ -268,7 +266,6 @@ class FuzzyMarketState():
                                   minbars   = minbars,
                                   bb_period = bb_period,
                                   bb_dev    = bb_dev,
-                                  bb_sma    = bb_sma,
                                   nan_value = nan_value,
                                   dropna    = dropna,
                                   level     = self.__logger.level)
@@ -973,7 +970,7 @@ class FuzzyMarketState():
     fig.append_trace(trace_bollinger_down, 1, 1)
     fig.append_trace(trace_bollinger_width, 2, 1)
     fig.append_trace(trace_bollinger_b, 3, 1)
-    fig['layout'].update(height=600, title='BBands')    
+    fig['layout'].update(height=800, title='BBands')    
     return fig,[trace_ohlc, trace_bollinger_up, trace_bollinger_mid, trace_bollinger_down, trace_bollinger_width, trace_bollinger_b]
 
 
@@ -1636,6 +1633,104 @@ class FuzzyMarketState():
     _df_result.apply(lambda x: fn_fuzzify_bollinger(x, self.__df, self.__logger), axis=1)
     return self.__df
 
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def fuzzifyMACD(self, timeperiod=50):
+    """ Fuzzifies macd-crossover signals :
+       Return:
+        self.__df -- Updated dataframe      
+    """
+    _df_result = self.__df[['MACD_main','MACD_sig','MACD_CROSS_ZERO_UP','MACD_CROSS_ZERO_DN','MACD_CROSS_SIG_UP','MACD_CROSS_SIG_DN']].copy()
+    _df_result['macd_main_sig'] = _df_result.MACD_main - _df_result.MACD_sig
+    _df_z_pos = _df_result.apply(lambda x: max(x.MACD_main, 0.0), axis=1)
+    _df_z_neg = _df_result.apply(lambda x: min(x.MACD_main, 0.0), axis=1)
+    _df_result['zbbup1'], _, _ = talib.BBANDS(_df_z_pos, timeperiod=timeperiod, nbdevup=0.5, nbdevdn=0.5, matype=0)
+    _df_result['zbbup2'], _, _ = talib.BBANDS(_df_z_pos, timeperiod=timeperiod, nbdevup=1.5, nbdevdn=1.5, matype=0)    
+    _df_result['zbbup3'], _, _ = talib.BBANDS(_df_z_pos, timeperiod=timeperiod, nbdevup=2.5, nbdevdn=2.5, matype=0)    
+    _, _, _df_result['zbblo1'] = talib.BBANDS(_df_z_neg, timeperiod=timeperiod, nbdevup=0.5, nbdevdn=0.5, matype=0)
+    _, _, _df_result['zbblo2'] = talib.BBANDS(_df_z_neg, timeperiod=timeperiod, nbdevup=1.5, nbdevdn=1.5, matype=0)    
+    _, _, _df_result['zbblo3'] = talib.BBANDS(_df_z_neg, timeperiod=timeperiod, nbdevup=2.5, nbdevdn=2.5, matype=0)    
+    _df_s_pos = _df_result.apply(lambda x: max(x.macd_main_sig, 0.0), axis=1)
+    _df_s_neg = _df_result.apply(lambda x: min(x.macd_main_sig, 0.0), axis=1)
+    _df_result['sbbup1'], _, _ = talib.BBANDS(_df_s_pos, timeperiod=timeperiod, nbdevup=0.5, nbdevdn=0.5, matype=0)
+    _df_result['sbbup2'], _, _ = talib.BBANDS(_df_s_pos, timeperiod=timeperiod, nbdevup=1.5, nbdevdn=1.5, matype=0)    
+    _df_result['sbbup3'], _, _ = talib.BBANDS(_df_s_pos, timeperiod=timeperiod, nbdevup=2.5, nbdevdn=2.5, matype=0)    
+    _, _, _df_result['sbblo1'] = talib.BBANDS(_df_s_neg, timeperiod=timeperiod, nbdevup=0.5, nbdevdn=0.5, matype=0)
+    _, _, _df_result['sbblo2'] = talib.BBANDS(_df_s_neg, timeperiod=timeperiod, nbdevup=1.5, nbdevdn=1.5, matype=0)    
+    _, _, _df_result['sbblo3'] = talib.BBANDS(_df_s_neg, timeperiod=timeperiod, nbdevup=2.5, nbdevdn=2.5, matype=0)    
+    _df_result['ZERO']=0.0
+    def fn_fuzzify_macd(x, df, logger):
+      logger.debug('fuzzifying row[{}]=> crisp_macd={}'.format(x.name, x.MACD_main))
+      f_sets = [{'type':'left-edge',    'p0': x.zbblo3, 'p1': x.zbblo2},
+                {'type':'internal-3pt', 'p0': x.zbblo3, 'p1': x.zbblo2, 'p2': x.zbblo1},
+                {'type':'internal-3pt', 'p0': x.zbblo2, 'p1': x.zbblo1, 'p2': x.ZERO},
+                {'type':'internal-3pt', 'p0': x.zbblo1, 'p1': x.ZERO, 'p2': x.zbbup1},
+                {'type':'internal-3pt', 'p0': x.ZERO, 'p1': x.zbbup1, 'p2': x.zbbup2},
+                {'type':'internal-3pt', 'p0': x.zbbup1, 'p1': x.zbbup2, 'p2': x.zbbup3},
+                {'type':'right-edge'  , 'p0': x.zbbup2, 'p1': x.zbbup3}]
+      fz1 = Fuzzifier.fuzzify(x.MACD_main, f_sets)
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO'] = x.MACD_main
+      if x.MACD_CROSS_ZERO_UP==True or x.MACD_CROSS_ZERO_DN==True:
+        df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G7'] = 1.0
+      else:
+        df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G7'] = 0.0
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G4'] = fz1[4]       
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G5'] = fz1[5]       
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G6'] = fz1[6]       
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S-3'] = x.zbblo3
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S-2'] = x.zbblo2
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S-1'] = x.zbblo1
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S0'] = x.ZERO
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S+1'] = x.zbbup1
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S+2'] = x.zbbup2
+      df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S+3'] = x.zbbup3
+      logger.debug('fuzzifying row[{}]=> crisp_sig={}'.format(x.name, x.macd_main_sig))
+      f_sets = [{'type':'left-edge',    'p0': x.sbblo3, 'p1': x.sbblo2},
+                {'type':'internal-3pt', 'p0': x.sbblo3, 'p1': x.sbblo2, 'p2': x.sbblo1},
+                {'type':'internal-3pt', 'p0': x.sbblo2, 'p1': x.sbblo1, 'p2': x.ZERO},
+                {'type':'internal-3pt', 'p0': x.sbblo1, 'p1': x.ZERO, 'p2': x.sbbup1},
+                {'type':'internal-3pt', 'p0': x.ZERO, 'p1': x.sbbup1, 'p2': x.sbbup2},
+                {'type':'internal-3pt', 'p0': x.sbbup1, 'p1': x.sbbup2, 'p2': x.sbbup3},
+                {'type':'right-edge'  , 'p0': x.sbbup2, 'p1': x.sbbup3}]
+      fz1 = Fuzzifier.fuzzify(x.macd_main_sig, f_sets)
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG'] = x.macd_main_sig
+      if x.MACD_CROSS_SIG_UP==True or x.MACD_CROSS_SIG_DN==True:
+        df.at[x.name, 'FUZ_MACD_CROSS_SIG_G7'] = 1.0
+      else:
+        df.at[x.name, 'FUZ_MACD_CROSS_SIG_G7'] = 0.0
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G5'] = fz1[6]
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G6'] = fz1[6]
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_S-3'] = x.sbblo3
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_S-2'] = x.sbblo2
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_S-1'] = x.sbblo1
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_S0'] = x.ZERO
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_S+1'] = x.sbbup1
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_S+2'] = x.sbbup2
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_S+3'] = x.sbbup3
+     
+    _df_result.apply(lambda x: fn_fuzzify_macd(x, self.__df, self.__logger), axis=1)
+    return self.__df
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def fuzzifyIndicators(self):
+    """ Build fuzzy-indicators
+    """
+    self.fuzzifyZigzag(timeperiod=50)
+    self.fuzzifyBollinger(timeperiod=50)
+    self.fuzzifyMACD(timeperiod=500)
+    return self.__df
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------

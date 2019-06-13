@@ -70,7 +70,7 @@ class ZIGZAG_Signal_Listener():
     self.__events = ZIGZAG_Events()
     self.__logger.info('Created!')
 
-  def ZIGZAG(self, df, minbars=12, bb_period=20, bb_dev = 2.0, bb_sma=[50], nan_value = 0.0, dropna=True, level=logging.WARN):    
+  def ZIGZAG(self, df, minbars=12, bb_period=20, bb_dev = 2.0, nan_value = 0.0, dropna=True, level=logging.WARN):    
     """Builds a ZIGZAG indicator based on Bollinger Bands overbought and oversell signals
 
     Keyword arguments:
@@ -78,7 +78,6 @@ class ZIGZAG_Signal_Listener():
       minbars -- Min. number of bars per flip to avoid discarding (default 12)
       bb_period -- Bollinger bands period (default 20)
       bb_dev -- Bollinger bands deviation (default 2.0)
-      bb_sma -- List of SMA timeperiod for Bands Width SMA calculation
       nan_value -- Values for zigzag indicator during search phase (default 0.0)
       dropna -- Flag to delete NaN values, else fill them with nan_value
       level -- logging level (default WARN)
