@@ -89,9 +89,110 @@ class Fuzzifier():
             u = _line(s['p0'],s['p1'],0.0,1.0,crisp_value)
           else:
             u = _line(s['p1'],s['p2'],1.0,0.0,crisp_value)
-
+        elif s['type'] == 'singleton':
+          if crisp_value == s['p0']:
+            u = 1.0
+          else :
+            u = 0.0
+        elif s['type'] == 'trapezoid-left':
+          if crisp_value >= s['p2'] or crisp_value <= s['p0']:
+            u = 0.0
+          elif crisp_value <= s['p1']:
+            u = _line(s['p0'],s['p1'],0.0,1.0,crisp_value)
+          else:
+            u = 1.0
+        elif s['type'] == 'trapezoid-right':
+          if crisp_value >= s['p2'] or crisp_value <= s['p0']:
+            u = 0.0
+          elif crisp_value <= s['p1']:
+            u = 1.0
+          else:
+            u = _line(s['p1'],s['p2'],1.0,0.0,crisp_value)
+        
       _fuzzy_values.append(u)
     return np.asarray(_fuzzy_values)
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def plotFuzzySets(fuzzy_sets, range, colors):
+    """ Plot fuzzy sets
+
+      Keyword arguments:
+        name -- Name to plot
+        fuzzy_sets -- Sets points (2 points for extremums sets and 3 points for rest)
+      Returns:
+        traces[] -- figure and traces for later plotting
+    """
+    traces = []
+    for s in fuzzy_sets:      
+      x = []
+      y = []
+      # first set
+      if s['type']=='left-edge':
+        x.append(range[0])
+        y.append(1.0)
+        x.append(s['p0'])
+        y.append(1.0)
+        x.append(s['p1'])
+        y.append(0.0)
+
+      # last set
+      elif s['type']=='right-edge':
+        x.append(s['p0'])
+        y.append(0.0)
+        x.append(s['p1'])
+        y.append(1.0)
+        x.append(range[1])
+        y.append(1.0)
+  
+      # intermediate sets
+      elif s['type'] == 'internal-4pt':
+        x.append(s['p0'])
+        y.append(0.0)
+        x.append(s['p1'])
+        y.append(1.0)
+        x.append(s['p2'])
+        y.append(1.0)
+        x.append(s['p3'])
+        y.append(0.0)
+      elif s['type'] == 'internal-3pt':
+        x.append(s['p0'])
+        y.append(0.0)
+        x.append(s['p1'])
+        y.append(1.0)
+        x.append(s['p2'])
+        y.append(0.0)
+      elif s['type'] == 'singleton':
+        x.append(s['p0'])
+        y.append(1.0)
+      elif s['type'] == 'trapezoid-left':
+        x.append(s['p0'])
+        y.append(0.0)
+        x.append(s['p1'])
+        y.append(1.0)
+        x.append(s['p2']-(s['p2']/1000000))
+        y.append(1.0)
+        x.append(s['p2'])
+        y.append(0.0)
+      elif s['type'] == 'trapezoid-right':
+        x.append(s['p0'])
+        y.append(0.0)
+        x.append(s['p0']+(s['p0']/1000000))
+        y.append(1.0)
+        x.append(s['p1'])
+        y.append(1.0)
+        x.append(s['p2'])
+        y.append(0.0)
+      traces.append(go.Scatter( x=np.asarray(x),
+                                y=np.asarray(y),
+                                name=s['name'],
+                                fill='toself',
+                                fillcolor=colors[len(traces)],
+                                hoveron ='points+fills',
+                                line=dict(color=colors[len(traces)]),
+                                text = "Points + Fills",
+                                hoverinfo = 'text'))                                      
+    return traces
 
 
 ####################################################################################
@@ -139,4 +240,30 @@ class FuzzyVar():
     return self.__fuzzy_values
 
 
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def getFuzzySetNames(self):
+    """ Get fuzzy-sets names as a dictionary in this format:
+        result = {'G0':'name_0, 'G1':'name_1, ..., 'Gx':'name_x}
+    """
+    g=0
+    result = dict()
+    for i in self.__fuzzy_set_points:
+      result['G{}'.format(g)] = i['name']
+      g += 1
+    return result
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def getFuzzySetTypes(self):
+    """ Get fuzzy-sets names as a dictionary in this format:
+        result = {'G0':'type_0, 'G1':'type_1, ..., 'Gx':'type_x}
+    """
+    g=0
+    result = dict()
+    for i in self.__fuzzy_set_points:
+      result['G{}'.format(g)] = i['type']
+      g += 1
+    return result
   

@@ -1460,8 +1460,26 @@ class FuzzyMarketState():
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
   def fuzzifyZigzag(self, timeperiod=50):
-    """ Fuzzifies zigzag indicators based on:
-      - flip duration
+    """ Fuzzifies zigzag indicators into next fuzzy-variables:
+      - ZZ_DURATION_1 variable gives duration between consecutive flips
+        - ZZDur1VerySmall
+        - ZZDur1SighthlySmall
+        - ZZDur1Similar
+        - ZZDur1SlightlyLarge
+        - ZZDur1VeryLarge 
+      - ZZ_DURATION_2 variable gives duration between flips in the same direction (pos, neg)
+        - ZZDur2VerySmall
+        - ZZDur2SighthlySmall
+        - ZZDur2Similar
+        - ZZDur2SlightlyLarge
+        - ZZDur2VeryLarge 
+      - ZZ_RANGE variable gives range against its SMA
+        - ZZRangeVerySmall
+        - ZZRangeSighthlySmall
+        - ZZRangeSimilar
+        - ZZRangeSlightlyLarge
+        - ZZRangeVeryLarge 
+
       - flip range      
       Keyword arguments:
         timeperiod -- period to build the sinthetic fuzzy indicator
@@ -1495,12 +1513,13 @@ class FuzzyMarketState():
 
     def fn_fuzzify_duration(x, df, logger):
       logger.debug('fuzzifying row[{}]=> crisp={}'.format(x.name, x.ZZ_DURATION_1))
-      f_sets = [{'type':'left-edge',    'p0': x.d1bblo2, 'p1': x.d1bblo1},
-                {'type':'internal-3pt', 'p0': x.d1bblo2, 'p1': x.d1bblo1, 'p2': x.d1bbma1},
-                {'type':'internal-3pt', 'p0': x.d1bblo1, 'p1': x.d1bbma1, 'p2': x.d1bbup1},
-                {'type':'internal-3pt', 'p0': x.d1bbma1, 'p1': x.d1bbup1, 'p2': x.d1bbup2},
-                {'type':'right-edge'  , 'p0': x.d1bbup1, 'p1': x.d1bbup2}]
+      f_sets = [{'type':'left-edge',    'name':'ZZDur1VerySmall',     'p0': x.d1bblo2, 'p1': x.d1bblo1},
+                {'type':'internal-3pt', 'name':'ZZDur1SighthlySmall', 'p0': x.d1bblo2, 'p1': x.d1bblo1, 'p2': x.d1bbma1},
+                {'type':'internal-3pt', 'name':'ZZDur1Similar',       'p0': x.d1bblo1, 'p1': x.d1bbma1, 'p2': x.d1bbup1},
+                {'type':'internal-3pt', 'name':'ZZDur1SlightlyLarge', 'p0': x.d1bbma1, 'p1': x.d1bbup1, 'p2': x.d1bbup2},
+                {'type':'right-edge'  , 'name':'ZZDur1VeryLarge',     'p0': x.d1bbup1, 'p1': x.d1bbup2}]
       fz1 = Fuzzifier.fuzzify(x.ZZ_DURATION_1, f_sets)
+      
       df.at[x.ZZ_IDX, 'FUZ_ZZ_DURATION_1'] = x.ZZ_DURATION_1
       df.at[x.ZZ_IDX, 'FUZ_ZZ_DURATION_1_G0'] = fz1[0]
       df.at[x.ZZ_IDX, 'FUZ_ZZ_DURATION_1_G1'] = fz1[1]
@@ -1512,11 +1531,11 @@ class FuzzyMarketState():
       df.at[x.ZZ_IDX, 'FUZ_ZZ_DURATION_1_S0'] = x.d1bbma1
       df.at[x.ZZ_IDX, 'FUZ_ZZ_DURATION_1_S+1'] = x.d1bbup1
       df.at[x.ZZ_IDX, 'FUZ_ZZ_DURATION_1_S+2'] = x.d1bbup2
-      f_sets = [{'type':'left-edge',    'p0': x.d2bblo2, 'p1': x.d2bblo1},
-                {'type':'internal-3pt', 'p0': x.d2bblo2, 'p1': x.d2bblo1, 'p2': x.d2bbma1},
-                {'type':'internal-3pt', 'p0': x.d2bblo1, 'p1': x.d2bbma1, 'p2': x.d2bbup1},
-                {'type':'internal-3pt', 'p0': x.d2bbma1, 'p1': x.d2bbup1, 'p2': x.d2bbup2},
-                {'type':'right-edge'  , 'p0': x.d2bbup1, 'p1': x.d2bbup2}]
+      f_sets = [{'type':'left-edge',    'name':'ZZDur2VerySmall',     'p0': x.d2bblo2, 'p1': x.d2bblo1},
+                {'type':'internal-3pt', 'name':'ZZDur2SighthlySmall', 'p0': x.d2bblo2, 'p1': x.d2bblo1, 'p2': x.d2bbma1},
+                {'type':'internal-3pt', 'name':'ZZDur2Similar',       'p0': x.d2bblo1, 'p1': x.d2bbma1, 'p2': x.d2bbup1},
+                {'type':'internal-3pt', 'name':'ZZDur2SlightlyLarge', 'p0': x.d2bbma1, 'p1': x.d2bbup1, 'p2': x.d2bbup2},
+                {'type':'right-edge'  , 'name':'ZZDur2VeryLarge',     'p0': x.d2bbup1, 'p1': x.d2bbup2}]
       fz2 = Fuzzifier.fuzzify(x.ZZ_DURATION_2, f_sets)
       df.at[x.ZZ_IDX, 'FUZ_ZZ_DURATION_2'] = x.ZZ_DURATION_2
       df.at[x.ZZ_IDX, 'FUZ_ZZ_DURATION_2_G0'] = fz2[0]
@@ -1540,11 +1559,11 @@ class FuzzyMarketState():
     _df_result['r1bbup2'], _df_result['r1bbma2'], _df_result['r1bblo2'] = talib.BBANDS(_df_result['ZZ_RANGE_ABS'], timeperiod=timeperiod, nbdevup=2.0, nbdevdn=2.0, matype=0)    
     def fn_fuzzify_range(x, df, logger):
       logger.debug('fuzzifying_range row[{}]=> crisp={}'.format(x.name, x.ZZ_RANGE_ABS))
-      f_sets = [{'type':'left-edge',    'p0': x.r1bblo2, 'p1': x.r1bblo1},
-                {'type':'internal-3pt', 'p0': x.r1bblo2, 'p1': x.r1bblo1, 'p2': x.r1bbma1},
-                {'type':'internal-3pt', 'p0': x.r1bblo1, 'p1': x.r1bbma1, 'p2': x.r1bbup1},
-                {'type':'internal-3pt', 'p0': x.r1bbma1, 'p1': x.r1bbup1, 'p2': x.r1bbup2},
-                {'type':'right-edge'  , 'p0': x.r1bbup1, 'p1': x.r1bbup2}]
+      f_sets = [{'type':'left-edge',    'name':'ZZRangeVerySmall',      'p0': x.r1bblo2, 'p1': x.r1bblo1},
+                {'type':'internal-3pt', 'name':'ZZRangeSighthlySmall',  'p0': x.r1bblo2, 'p1': x.r1bblo1, 'p2': x.r1bbma1},
+                {'type':'internal-3pt', 'name':'ZZRangeSimilar',        'p0': x.r1bblo1, 'p1': x.r1bbma1, 'p2': x.r1bbup1},
+                {'type':'internal-3pt', 'name':'ZZRangeSlightlyLarge',  'p0': x.r1bbma1, 'p1': x.r1bbup1, 'p2': x.r1bbup2},
+                {'type':'right-edge'  , 'name':'ZZRangeVeryLarge',      'p0': x.r1bbup1, 'p1': x.r1bbup2}]
       fz1 = Fuzzifier.fuzzify(x.ZZ_RANGE_ABS, f_sets)
       df.at[x.ZZ_IDX, 'FUZ_ZZ_RANGE'] = x.ZZ_RANGE_ABS
       df.at[x.ZZ_IDX, 'FUZ_ZZ_RANGE_G0'] = fz1[0]
@@ -1566,9 +1585,23 @@ class FuzzyMarketState():
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
   def fuzzifyBollinger(self, timeperiod=50):
-    """ Fuzzifies bollinger indicators based on:
-      - %b position
-      - bands-width against bands-width-sma      
+    """ Fuzzifies BBands indicator in 2 fuzzy-variables:
+      - BOLLINGER_WIDTH variable classifies Bands-width against its SMA into these fuzzy-sets:
+        - WidthVerySmall
+        - WidthSmall
+        - WidthSighthlySmall
+        - WidthSimilar
+        - WidthSlightlyLarge
+        - WidthLarge
+        - WidthVeryLarge 
+      - BOLLINGER_b variables classifies BBands %b against its SMA into these fuzzy-sets:
+        - InOverSell
+        - NearOverSell
+        - FarFromOverSell
+        - FarFromAnySignal
+        - FarFromOverBought
+        - NearToOverBought
+        - InOverBought
       Return:
         self.__df -- Updated dataframe      
     """
@@ -1576,20 +1609,15 @@ class FuzzyMarketState():
     _df_result['wbbup1'], _df_result['wbbma1'], _df_result['wbblo1'] = talib.BBANDS(_df_result.BOLLINGER_WIDTH, timeperiod=timeperiod, nbdevup=1.0, nbdevdn=1.0, matype=0)
     _df_result['wbbup2'], _df_result['wbbma2'], _df_result['wbblo2'] = talib.BBANDS(_df_result.BOLLINGER_WIDTH, timeperiod=timeperiod, nbdevup=2.0, nbdevdn=2.0, matype=0)    
     _df_result['wbbup3'], _df_result['wbbma3'], _df_result['wbblo3'] = talib.BBANDS(_df_result.BOLLINGER_WIDTH, timeperiod=timeperiod, nbdevup=3.0, nbdevdn=3.0, matype=0)    
-
-    _df_result['bbup1'], _df_result['bbma1'], _df_result['bblo1'] = talib.BBANDS(_df_result.BOLLINGER_b, timeperiod=timeperiod, nbdevup=1.0, nbdevdn=1.0, matype=0)
-    _df_result['bbup2'], _df_result['bbma2'], _df_result['bblo2'] = talib.BBANDS(_df_result.BOLLINGER_b, timeperiod=timeperiod, nbdevup=2.0, nbdevdn=2.0, matype=0)    
-    _df_result['bbup3'], _df_result['bbma3'], _df_result['bblo3'] = talib.BBANDS(_df_result.BOLLINGER_b, timeperiod=timeperiod, nbdevup=3.0, nbdevdn=3.0, matype=0)    
-
     def fn_fuzzify_bollinger(x, df, logger):
       logger.debug('fuzzifying row[{}]=> crisp={}'.format(x.name, x.BOLLINGER_WIDTH))
-      f_sets = [{'type':'left-edge',    'p0': x.wbblo3, 'p1': x.wbblo2},
-                {'type':'internal-3pt', 'p0': x.wbblo3, 'p1': x.wbblo2, 'p2': x.wbblo1},
-                {'type':'internal-3pt', 'p0': x.wbblo2, 'p1': x.wbblo1, 'p2': x.wbbma1},
-                {'type':'internal-3pt', 'p0': x.wbblo1, 'p1': x.wbbma1, 'p2': x.wbbup1},
-                {'type':'internal-3pt', 'p0': x.wbbma1, 'p1': x.wbbup1, 'p2': x.wbbup2},
-                {'type':'internal-3pt', 'p0': x.wbbup1, 'p1': x.wbbup2, 'p2': x.wbbup3},
-                {'type':'right-edge'  , 'p0': x.wbbup2, 'p1': x.wbbup3}]
+      f_sets = [{'type':'left-edge',    'name':'WidthVerySmall',      'p0': x.wbblo3, 'p1': x.wbblo2},
+                {'type':'internal-3pt', 'name':'WidthSmall',          'p0': x.wbblo3, 'p1': x.wbblo2, 'p2': x.wbblo1},
+                {'type':'internal-3pt', 'name':'WidthSighthlySmall',  'p0': x.wbblo2, 'p1': x.wbblo1, 'p2': x.wbbma1},
+                {'type':'internal-3pt', 'name':'WidthSimilar',        'p0': x.wbblo1, 'p1': x.wbbma1, 'p2': x.wbbup1},
+                {'type':'internal-3pt', 'name':'WidthSlightlyLarge',  'p0': x.wbbma1, 'p1': x.wbbup1, 'p2': x.wbbup2},
+                {'type':'internal-3pt', 'name':'WidthLarge',          'p0': x.wbbup1, 'p1': x.wbbup2, 'p2': x.wbbup3},
+                {'type':'right-edge'  , 'name':'WidthVeryLarge',      'p0': x.wbbup2, 'p1': x.wbbup3}]
       fz1 = Fuzzifier.fuzzify(x.BOLLINGER_WIDTH, f_sets)
       df.at[x.name, 'FUZ_BOLLINGER_WIDTH'] = x.BOLLINGER_WIDTH
       df.at[x.name, 'FUZ_BOLLINGER_WIDTH_G0'] = fz1[0]
@@ -1607,13 +1635,13 @@ class FuzzyMarketState():
       df.at[x.name, 'FUZ_BOLLINGER_WIDTH_S+2'] = x.wbbup2
       df.at[x.name, 'FUZ_BOLLINGER_WIDTH_S+3'] = x.wbbup3
       logger.debug('fuzzifying row[{}]=> crisp={}'.format(x.name, x.BOLLINGER_b))
-      f_sets = [{'type':'left-edge',    'p0': x.bblo3, 'p1': x.bblo2},
-                {'type':'internal-3pt', 'p0': x.bblo3, 'p1': x.bblo2, 'p2': x.bblo1},
-                {'type':'internal-3pt', 'p0': x.bblo2, 'p1': x.bblo1, 'p2': x.bbma1},
-                {'type':'internal-3pt', 'p0': x.bblo1, 'p1': x.bbma1, 'p2': x.bbup1},
-                {'type':'internal-3pt', 'p0': x.bbma1, 'p1': x.bbup1, 'p2': x.bbup2},
-                {'type':'internal-3pt', 'p0': x.bbup1, 'p1': x.bbup2, 'p2': x.bbup3},
-                {'type':'right-edge'  , 'p0': x.bbup2, 'p1': x.bbup3}]
+      f_sets = [{'type':'left-edge',    'name':'InOverSell',        'p0': 0.0, 'p1': 0.15},
+                {'type':'internal-3pt', 'name':'NearOverSell',      'p0': 0.0, 'p1': 0.15, 'p2': 0.25},
+                {'type':'internal-3pt', 'name':'FarFromOverSell',   'p0': 0.25, 'p1': 0.35, 'p2': 0.5},
+                {'type':'internal-3pt', 'name':'FarFromAnySignal',  'p0': 0.35, 'p1': 0.5, 'p2': 0.65},
+                {'type':'internal-3pt', 'name':'FarFromOverBought', 'p0': 0.5, 'p1': 0.65, 'p2': 0.75},
+                {'type':'internal-3pt', 'name':'NearToOverBought',  'p0': 0.65, 'p1': 0.75, 'p2': 0.85},
+                {'type':'right-edge'  , 'name':'InOverBought',      'p0': 0.85, 'p1': 1.0}]
       fz1 = Fuzzifier.fuzzify(x.BOLLINGER_b, f_sets)
       df.at[x.name, 'FUZ_BOLLINGER_b'] = x.BOLLINGER_b
       df.at[x.name, 'FUZ_BOLLINGER_b_G0'] = fz1[0]
@@ -1623,21 +1651,37 @@ class FuzzyMarketState():
       df.at[x.name, 'FUZ_BOLLINGER_b_G4'] = fz1[4]
       df.at[x.name, 'FUZ_BOLLINGER_b_G5'] = fz1[5]
       df.at[x.name, 'FUZ_BOLLINGER_b_G6'] = fz1[6]
-      df.at[x.name, 'FUZ_BOLLINGER_b_S-3'] = x.bblo3
-      df.at[x.name, 'FUZ_BOLLINGER_b_S-2'] = x.bblo2
-      df.at[x.name, 'FUZ_BOLLINGER_b_S-1'] = x.bblo1
-      df.at[x.name, 'FUZ_BOLLINGER_b_S0'] = x.bbma1
-      df.at[x.name, 'FUZ_BOLLINGER_b_S+1'] = x.bbup1
-      df.at[x.name, 'FUZ_BOLLINGER_b_S+2'] = x.bbup2
-      df.at[x.name, 'FUZ_BOLLINGER_b_S+3'] = x.bbup3
+      df.at[x.name, 'FUZ_BOLLINGER_b_S-3'] = 0.0
+      df.at[x.name, 'FUZ_BOLLINGER_b_S-2'] = 0.15
+      df.at[x.name, 'FUZ_BOLLINGER_b_S-1'] = 0.35
+      df.at[x.name, 'FUZ_BOLLINGER_b_S0'] = 0.5
+      df.at[x.name, 'FUZ_BOLLINGER_b_S+1'] = 0.65
+      df.at[x.name, 'FUZ_BOLLINGER_b_S+2'] = 0.75
+      df.at[x.name, 'FUZ_BOLLINGER_b_S+3'] = 1.0
     _df_result.apply(lambda x: fn_fuzzify_bollinger(x, self.__df, self.__logger), axis=1)
     return self.__df
 
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def fuzzifyMACD(self, timeperiod=50):
-    """ Fuzzifies macd-crossover signals :
+  def fuzzifyMACD(self, timeperiod=500):
+    """ Fuzzifies MACD into 2 variables and their associated fuzzy-sets:
+        - MACD_CROSS_ZERO variable indicates approaching state from MACD_main to ZEROLEVEL:
+          - MacdFarBelowZero
+          - MacdMidDistBelowZero
+          - MacdNearBelowZero
+          - MacdJustCrossedZero 
+          - MacdNearAboveZero
+          - MacdMidDistAboveZero
+          - MacdFarAboveZero
+        - MACD_CROSS_SIG variable indicates approaching state from MACD_main to MACD_sig:
+          - MacdFarBelowSig
+          - MacdMidDistBelowSig
+          - MacdNearBelowSig
+          - MacdNearAboveSig
+          - MacdMidDistAboveSig
+          - MacdFarAboveSig
+          - MacdJustCrossedSig 
        Return:
         self.__df -- Updated dataframe      
     """
@@ -1662,19 +1706,19 @@ class FuzzyMarketState():
     _df_result['ZERO']=0.0
     def fn_fuzzify_macd(x, df, logger):
       logger.debug('fuzzifying row[{}]=> crisp_macd={}'.format(x.name, x.MACD_main))
-      f_sets = [{'type':'left-edge',    'p0': x.zbblo3, 'p1': x.zbblo2},
-                {'type':'internal-3pt', 'p0': x.zbblo3, 'p1': x.zbblo2, 'p2': x.zbblo1},
-                {'type':'internal-3pt', 'p0': x.zbblo2, 'p1': x.zbblo1, 'p2': x.ZERO},
-                {'type':'internal-3pt', 'p0': x.zbblo1, 'p1': x.ZERO, 'p2': x.zbbup1},
-                {'type':'internal-3pt', 'p0': x.ZERO, 'p1': x.zbbup1, 'p2': x.zbbup2},
-                {'type':'internal-3pt', 'p0': x.zbbup1, 'p1': x.zbbup2, 'p2': x.zbbup3},
-                {'type':'right-edge'  , 'p0': x.zbbup2, 'p1': x.zbbup3}]
+      f_sets = [{'type':'left-edge',      'name':'MacdFarBelowZero',    'p0': x.zbblo3, 'p1': x.zbblo2},
+                {'type':'internal-3pt',   'name':'MacdMidDistBelowZero','p0': x.zbblo3, 'p1': x.zbblo2, 'p2': x.zbblo1},
+                {'type':'trapezoid-left', 'name':'MacdNearBelowZero',   'p0': x.zbblo2, 'p1': x.zbblo1, 'p2': x.ZERO},
+                {'type':'singleton',      'name':'MacdJustCrossedZero', 'p0': x.ZERO},
+                {'type':'trapezoid-right','name':'MacdNearAboveZero',   'p0': x.ZERO,   'p1': x.zbbup1, 'p2': x.zbbup2},
+                {'type':'internal-3pt',   'name':'MacdMidDistAboveZero','p0': x.zbbup1, 'p1': x.zbbup2, 'p2': x.zbbup3},
+                {'type':'right-edge'  ,   'name':'MacdFarAboveZero',    'p0': x.zbbup2, 'p1': x.zbbup3}]
       fz1 = Fuzzifier.fuzzify(x.MACD_main, f_sets)
       df.at[x.name, 'FUZ_MACD_CROSS_ZERO'] = x.MACD_main
       if x.MACD_CROSS_ZERO_UP==True or x.MACD_CROSS_ZERO_DN==True:
-        df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G7'] = 1.0
+        fz1[3] = 1.0
       else:
-        df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G7'] = 0.0
+        fz1[3] = 0.0
       df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G0'] = fz1[0]
       df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G1'] = fz1[1]
       df.at[x.name, 'FUZ_MACD_CROSS_ZERO_G2'] = fz1[2]
@@ -1690,25 +1734,25 @@ class FuzzyMarketState():
       df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S+2'] = x.zbbup2
       df.at[x.name, 'FUZ_MACD_CROSS_ZERO_S+3'] = x.zbbup3
       logger.debug('fuzzifying row[{}]=> crisp_sig={}'.format(x.name, x.macd_main_sig))
-      f_sets = [{'type':'left-edge',    'p0': x.sbblo3, 'p1': x.sbblo2},
-                {'type':'internal-3pt', 'p0': x.sbblo3, 'p1': x.sbblo2, 'p2': x.sbblo1},
-                {'type':'internal-3pt', 'p0': x.sbblo2, 'p1': x.sbblo1, 'p2': x.ZERO},
-                {'type':'internal-3pt', 'p0': x.sbblo1, 'p1': x.ZERO, 'p2': x.sbbup1},
-                {'type':'internal-3pt', 'p0': x.ZERO, 'p1': x.sbbup1, 'p2': x.sbbup2},
-                {'type':'internal-3pt', 'p0': x.sbbup1, 'p1': x.sbbup2, 'p2': x.sbbup3},
-                {'type':'right-edge'  , 'p0': x.sbbup2, 'p1': x.sbbup3}]
+      f_sets = [{'type':'left-edge',      'name':'MacdFarBelowSig',    'p0': x.sbblo3, 'p1': x.sbblo2},
+                {'type':'internal-3pt',   'name':'MacdMidDistBelowSig','p0': x.sbblo3, 'p1': x.sbblo2, 'p2': x.sbblo1},
+                {'type':'trapezoid-left', 'name':'MacdNearBelowSig',   'p0': x.sbblo2, 'p1': x.sbblo1, 'p2': x.ZERO},
+                {'type':'singleton',      'name':'MacdJustCrossedSig', 'p0': x.ZERO},
+                {'type':'trapezoid-right','name':'MacdNearAboveSig',   'p0': x.ZERO,   'p1': x.sbbup1, 'p2': x.sbbup2},
+                {'type':'internal-3pt',   'name':'MacdMidDistAboveSig','p0': x.sbbup1, 'p1': x.sbbup2, 'p2': x.sbbup3},
+                {'type':'right-edge'  ,   'name':'MacdFarAboveSig',    'p0': x.sbbup2, 'p1': x.sbbup3}]
       fz1 = Fuzzifier.fuzzify(x.macd_main_sig, f_sets)
       df.at[x.name, 'FUZ_MACD_CROSS_SIG'] = x.macd_main_sig
       if x.MACD_CROSS_SIG_UP==True or x.MACD_CROSS_SIG_DN==True:
-        df.at[x.name, 'FUZ_MACD_CROSS_SIG_G7'] = 1.0
+        fz1[3] = 1.0
       else:
-        df.at[x.name, 'FUZ_MACD_CROSS_SIG_G7'] = 0.0
+        fz1[3] = 0.0
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_G0'] = fz1[0]
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_G1'] = fz1[1]
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_G2'] = fz1[2]
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_G3'] = fz1[3]
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_G4'] = fz1[4]
-      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G5'] = fz1[6]
+      df.at[x.name, 'FUZ_MACD_CROSS_SIG_G5'] = fz1[5]
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_G6'] = fz1[6]
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_S-3'] = x.sbblo3
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_S-2'] = x.sbblo2
@@ -1719,6 +1763,43 @@ class FuzzyMarketState():
       df.at[x.name, 'FUZ_MACD_CROSS_SIG_S+3'] = x.sbbup3
      
     _df_result.apply(lambda x: fn_fuzzify_macd(x, self.__df, self.__logger), axis=1)
+    return self.__df
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def fuzzifyRSI(self, timeperiod=500):
+    """ Fuzzifies RSI into these fuzzy sets:
+        - InOverSell
+        - NearOverSell
+        - FarFromLevels
+        - NearOverBought
+        - InOverBought
+       Return:
+        self.__df -- Updated dataframe      
+    """
+    _df_result = self.__df[['RSI']].copy()
+    def fn_fuzzify_rsi(x, df, logger):
+      logger.debug('fuzzifying row[{}]=> crisp_macd={}'.format(x.name, x.RSI))
+      f_sets = [{'type':'left-edge',    'name':'RsiInOverSell',     'p0': 30.0, 'p1': 30.1},
+                {'type':'internal-3pt', 'name':'RsiNearOverSell',   'p0': 30.0, 'p1': 30.1, 'p2': 50.0},
+                {'type':'internal-3pt', 'name':'RsiFarFromLevels',  'p0': 30.0, 'p1': 50.0, 'p2': 70.0},
+                {'type':'internal-3pt', 'name':'RsiNearOverBought', 'p0': 50.0, 'p1': 69.9, 'p2': 70.0},
+                {'type':'right-edge'  , 'name':'RsiInOverBought',   'p0': 69.9, 'p1': 70.0}]
+      fz1 = Fuzzifier.fuzzify(x.RSI, f_sets)
+      df.at[x.name, 'FUZ_RSI'] = x.RSI
+      df.at[x.name, 'FUZ_RSI_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_RSI_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_RSI_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_RSI_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_RSI_G4'] = fz1[4]       
+      df.at[x.name, 'FUZ_RSI_S-2'] = 30.0
+      df.at[x.name, 'FUZ_RSI_S-1'] = 30.1
+      df.at[x.name, 'FUZ_RSI_S0'] = 50.0
+      df.at[x.name, 'FUZ_RSI_S+1'] = 69.9
+      df.at[x.name, 'FUZ_RSI_S+2'] = 70.0      
+     
+    _df_result.apply(lambda x: fn_fuzzify_rsi(x, self.__df, self.__logger), axis=1)
     return self.__df
 
 
