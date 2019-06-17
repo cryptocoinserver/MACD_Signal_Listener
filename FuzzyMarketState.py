@@ -1805,12 +1805,255 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
+  def fuzzifyMovingAverages(self, timeperiod=4):
+    """ Fuzzifies SMA_BULLISH_TREND and SMA_BEARISH_TREND into these fuzzy sets:
+        - NoTrend
+        - SmallTrend
+        - MediumTrend
+        - HighTrend
+       Return:
+        self.__df -- Updated dataframe      
+    """
+    _df_result = self.__df[['SMA_BULLISH_TREND', 'SMA_BEARISH_TREND']].copy()
+    _df_result['SMA_BULLISH_TREND'] = talib.SMA(_df_result['SMA_BULLISH_TREND'], timeperiod=timeperiod)
+    _df_result['SMA_BEARISH_TREND'] = talib.SMA(_df_result['SMA_BEARISH_TREND'], timeperiod=timeperiod)
+    def fn_fuzzify_sma(x, df, logger):
+      logger.debug('fuzzifying row[{}]=> crisp_bull={} crips_bear={}'.format(x.name, x.SMA_BULLISH_TREND, x.SMA_BEARISH_TREND))
+      f_sets = [{'type':'left-edge',    'name':'NoTrend',     'p0': 0.0, 'p1': 0.2},
+                {'type':'internal-3pt', 'name':'SmallTrend',  'p0': 0.0, 'p1': 0.2, 'p2': 0.5},
+                {'type':'internal-3pt', 'name':'MediumTrend', 'p0': 0.2, 'p1': 0.5, 'p2': 0.8},
+                {'type':'right-edge'  , 'name':'HighTrend',   'p0': 0.8, 'p1': 1.0}]
+      fz1 = Fuzzifier.fuzzify(x.SMA_BULLISH_TREND, f_sets)
+      fz2 = Fuzzifier.fuzzify(x.SMA_BEARISH_TREND, f_sets)
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND'] = x.SMA_BULLISH_TREND
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND_S0'] = 0.0
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND_S+1'] = 0.2
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND_S+2'] = 0.5      
+      df.at[x.name, 'FUZ_SMA_BULLISH_TREND_S+3'] = 1.0      
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND'] = x.SMA_BEARISH_TREND
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_G0'] = fz2[0]
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_G1'] = fz2[1]
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_G2'] = fz2[2]
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_G3'] = fz2[3]
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S0'] = 0.0
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S+1'] = 0.2
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S+2'] = 0.5      
+      df.at[x.name, 'FUZ_SMA_BEARISH_TREND_S+3'] = 1.0      
+           
+    _df_result.apply(lambda x: fn_fuzzify_sma(x, self.__df, self.__logger), axis=1)
+    return self.__df
+
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def fuzzifyFibo(self):
+    """ Fuzzifies FIBO_x variables into these fuzzy sets:
+        - InFiboLevel
+        - NearFiboLevel
+        - FarFromFiboLevel
+       Return:
+        self.__df -- Updated dataframe      
+    """
+    cols = [c for c in self.__df.columns if 'FIBO_' in c]
+    _df_result = self.__df[cols].copy()
+    def fn_fuzzify_fibo(x, df, logger):
+      logger.debug('fuzzifying row[{}]=> crisp={}'.format(x.name, x.FIBO_CURR))
+      def get_sets(value_inf, value, value_sup):
+        si = (value - value_inf)/3
+        ss = (value_sup - value)/3
+        return  [{'type':'left-edge',    'name':'FarFromFiboLevel','p0': value_inf+si, 'p1': value-si},
+                {'type':'internal-3pt', 'name':'NearFiboLevel',   'p0': value_inf+si, 'p1': value-si, 'p2': value},
+                {'type':'internal-3pt', 'name':'InFiboLevel',     'p0': value-si, 'p1': value, 'p2': value+ss},
+                {'type':'internal-3pt', 'name':'NearFiboLevel',   'p0': value, 'p1': value+ss, 'p2': value_sup-ss},
+                {'type':'right-edge'  , 'name':'FarFromFiboLevel','p0': value+ss, 'p1': value_sup-ss}]
+      df.at[x.name, 'FUZ_FIBO_RETR'] = x.FIBO_CURR
+      df.at[x.name, 'FUZ_FIBO_EXTN'] = x.FIBO_CURR
+      f_sets = get_sets(0.14, 0.23, 0.38)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_023_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_023_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_023_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_023_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_023_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_023_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_023_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_023_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_023_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_023_S+2'] = f_sets[4]['p1']   
+      nearest_level = 'FUZ_FIBO_023'   
+      nearest_value = fz1[2]
+      f_sets = get_sets(0.23, 0.38, 0.50)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_038_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_038_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_038_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_038_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_038_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_038_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_038_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_038_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_038_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_038_S+2'] = f_sets[4]['p1']      
+      if fz1[2] > nearest_value:
+        nearest_value = fz1[2]
+        nearest_level = 'FUZ_FIBO_038'   
+      f_sets = get_sets(0.38, 0.50, 0.61)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_050_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_050_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_050_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_050_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_050_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_050_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_050_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_050_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_050_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_050_S+2'] = f_sets[4]['p1']      
+      if fz1[2] > nearest_value:
+        nearest_value = fz1[2]
+        nearest_level = 'FUZ_FIBO_050'   
+      f_sets = get_sets(0.50, 0.61, 0.78)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_061_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_061_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_061_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_061_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_061_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_061_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_061_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_061_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_061_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_061_S+2'] = f_sets[4]['p1']      
+      if fz1[2] > nearest_value:
+        nearest_value = fz1[2]
+        nearest_level = 'FUZ_FIBO_061'   
+      f_sets = get_sets(0.61, 0.78, 0.86)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_078_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_078_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_078_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_078_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_078_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_078_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_078_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_078_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_078_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_078_S+2'] = f_sets[4]['p1']      
+      if fz1[2] > nearest_value:
+        nearest_value = fz1[2]
+        nearest_level = 'FUZ_FIBO_078' 
+      if nearest_value == 0.0:
+        if x.FIBO_CURR < 0.23:
+          nearest_level = 'FUZ_FIBO_023'  
+        elif x.FIBO_CURR > 0.78:
+          nearest_level = 'FUZ_FIBO_078' 
+      df.at[x.name, 'FUZ_FIBO_RETR_S-2'] = df['{}_S-2'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_RETR_S-1'] = df['{}_S-1'.format(nearest_level)].iloc[x.name]    
+      df.at[x.name, 'FUZ_FIBO_RETR_S0'] = df['{}_S0'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_RETR_S+1'] = df['{}_S+1'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_RETR_S+2'] = df['{}_S+2'.format(nearest_level)].iloc[x.name]     
+      f_sets = get_sets(1.14, 1.23, 1.38)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_123_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_123_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_123_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_123_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_123_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_123_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_123_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_123_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_123_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_123_S+2'] = f_sets[4]['p1']   
+      nearest_level = 'FUZ_FIBO_123'   
+      nearest_value = fz1[2]
+      f_sets = get_sets(1.23, 1.38, 1.50)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_138_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_138_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_138_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_138_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_138_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_138_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_138_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_138_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_138_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_138_S+2'] = f_sets[4]['p1']      
+      if fz1[2] > nearest_value:
+        nearest_value = fz1[2]
+        nearest_level = 'FUZ_FIBO_138'   
+      f_sets = get_sets(1.38, 1.50, 1.61)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_150_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_150_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_150_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_150_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_150_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_150_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_150_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_150_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_150_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_150_S+2'] = f_sets[4]['p1']      
+      if fz1[2] > nearest_value:
+        nearest_value = fz1[2]
+        nearest_level = 'FUZ_FIBO_150'   
+      f_sets = get_sets(1.50, 1.61, 1.78)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_161_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_161_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_161_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_161_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_161_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_161_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_161_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_161_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_161_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_161_S+2'] = f_sets[4]['p1']      
+      if fz1[2] > nearest_value:
+        nearest_value = fz1[2]
+        nearest_level = 'FUZ_FIBO_161'   
+      f_sets = get_sets(1.61, 1.78, 1.86)
+      fz1 = Fuzzifier.fuzzify(x.FIBO_CURR, f_sets)
+      df.at[x.name, 'FUZ_FIBO_178_G0'] = fz1[0]
+      df.at[x.name, 'FUZ_FIBO_178_G1'] = fz1[1]
+      df.at[x.name, 'FUZ_FIBO_178_G2'] = fz1[2]
+      df.at[x.name, 'FUZ_FIBO_178_G3'] = fz1[3]
+      df.at[x.name, 'FUZ_FIBO_178_G4'] = fz1[4]
+      df.at[x.name, 'FUZ_FIBO_178_S-2'] = f_sets[0]['p0']
+      df.at[x.name, 'FUZ_FIBO_178_S-1'] = f_sets[1]['p1']      
+      df.at[x.name, 'FUZ_FIBO_178_S0'] = f_sets[2]['p1']
+      df.at[x.name, 'FUZ_FIBO_178_S+1'] = f_sets[3]['p1']
+      df.at[x.name, 'FUZ_FIBO_178_S+2'] = f_sets[4]['p1']      
+      if fz1[2] > nearest_value:
+        nearest_value = fz1[2]
+        nearest_level = 'FUZ_FIBO_178'        
+      if nearest_value == 0.0:
+        if x.FIBO_CURR < 1.23:
+          nearest_level = 'FUZ_FIBO_123'  
+        elif x.FIBO_CURR > 1.78:
+          nearest_level = 'FUZ_FIBO_178' 
+      df.at[x.name, 'FUZ_FIBO_EXTN_S-2'] = df['{}_S-2'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_EXTN_S-1'] = df['{}_S-1'.format(nearest_level)].iloc[x.name]    
+      df.at[x.name, 'FUZ_FIBO_EXTN_S0'] = df['{}_S0'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_EXTN_S+1'] = df['{}_S+1'.format(nearest_level)].iloc[x.name]
+      df.at[x.name, 'FUZ_FIBO_EXTN_S+2'] = df['{}_S+2'.format(nearest_level)].iloc[x.name]          
+
+    _df_result.apply(lambda x: fn_fuzzify_fibo(x, self.__df, self.__logger), axis=1)
+    return self.__df
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
   def fuzzifyIndicators(self):
     """ Build fuzzy-indicators
     """
     self.fuzzifyZigzag(timeperiod=50)
     self.fuzzifyBollinger(timeperiod=50)
     self.fuzzifyMACD(timeperiod=500)
+    self.fuzzifyRSI(timeperiod=500)
+    self.fuzzifyMovingAverages(timeperiod=14)
     return self.__df
 
   #-------------------------------------------------------------------
@@ -1843,15 +2086,20 @@ class FuzzyMarketState():
     if 'FUZ_{}_S-3'.format(var) in self.__df.columns:
       traces.append(go.Scatter( x=self.__df.index.values, y=self.__df['FUZ_{}_S-3'.format(var)], 
                       fill='none', mode='lines', name='-3std', line=dict(width=4, color=colors[3])))
-    traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S-2'.format(var)], 
+    if 'FUZ_{}_S-2'.format(var) in self.__df.columns:
+      traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S-2'.format(var)], 
                       fill='none', mode='lines', name='-2std', line=dict(width=4, color=colors[2])))
-    traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S-1'.format(var)], 
+    if 'FUZ_{}_S-1'.format(var) in self.__df.columns:
+      traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S-1'.format(var)], 
                       fill='none', mode='lines', name='-1std', line=dict(width=4, color=colors[1])))
-    traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S0'.format(var)], 
+    if 'FUZ_{}_S0'.format(var) in self.__df.columns:
+      traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S0'.format(var)], 
                       fill='none', mode='lines', name=' 0std', line=dict(width=4, color=colors[0])))
-    traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S+1'.format(var)], 
+    if 'FUZ_{}_S+1'.format(var) in self.__df.columns:
+      traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S+1'.format(var)], 
                       fill='none', mode='lines', name='+1std', line=dict(width=4, color=colors[1])))
-    traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S+2'.format(var)], 
+    if 'FUZ_{}_S+2'.format(var) in self.__df.columns:
+      traces.append(go.Scatter(x=self.__df.index.values, y=self.__df['FUZ_{}_S+2'.format(var)], 
                       fill='none', mode='lines', name='+2std', line=dict(width=4, color=colors[2])))
     if 'FUZ_{}_S+3'.format(var) in self.__df.columns:
       traces.append(go.Scatter( x=self.__df.index.values, y=self.__df['FUZ_{}_S+3'.format(var)], 
