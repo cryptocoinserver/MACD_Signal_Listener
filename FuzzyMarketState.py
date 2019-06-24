@@ -597,38 +597,22 @@ class FuzzyMarketState():
     df['BEARISH_DIVERGENCE'] = 0.0
 
     df['DIV_DOUB_REG_BEAR_MACD'] = 0.0
-    df['DIV_DOUB_REG_BEAR_MACD_FROM'] = 0
     df['DIV_REG_BEAR_MACD'] = 0.0
-    df['DIV_REG_BEAR_MACD_FROM'] = 0
     df['DIV_DOUB_REG_BULL_MACD'] = 0.0
-    df['DIV_DOUB_REG_BULL_MACD_FROM'] = 0
     df['DIV_REG_BULL_MACD'] = 0.0
-    df['DIV_REG_BULL_MACD_FROM'] = 0
     df['DIV_DOUB_HID_BEAR_MACD'] = 0.0
-    df['DIV_DOUB_HID_BEAR_MACD_FROM'] = 0
     df['DIV_HID_BEAR_MACD'] = 0.0
-    df['DIV_HID_BEAR_MACD_FROM'] = 0
     df['DIV_DOUB_HID_BULL_MACD'] = 0.0
-    df['DIV_DOUB_HID_BULL_MACD_FROM'] = 0
     df['DIV_HID_BULL_MACD'] = 0.0
-    df['DIV_HID_BULL_MACD_FROM'] = 0
-
+    
     df['DIV_DOUB_REG_BEAR_RSI'] = 0.0
-    df['DIV_DOUB_REG_BEAR_RSI_FROM'] = 0
     df['DIV_REG_BEAR_RSI'] = 0.0
-    df['DIV_REG_BEAR_RSI_FROM'] = 0
     df['DIV_DOUB_REG_BULL_RSI'] = 0.0
-    df['DIV_DOUB_REG_BULL_RSI_FROM'] = 0
     df['DIV_REG_BULL_RSI'] = 0.0
-    df['DIV_REG_BULL_RSI_FROM'] = 0
     df['DIV_DOUB_HID_BEAR_RSI'] = 0.0
-    df['DIV_DOUB_HID_BEAR_RSI_FROM'] = 0
     df['DIV_HID_BEAR_RSI'] = 0.0
-    df['DIV_HID_BEAR_RSI_FROM'] = 0
     df['DIV_DOUB_HID_BULL_RSI'] = 0.0
-    df['DIV_DOUB_HID_BULL_RSI_FROM'] = 0
     df['DIV_HID_BULL_RSI'] = 0.0
-    df['DIV_HID_BULL_RSI_FROM'] = 0
      
     # executes divergence localization process:
     # 1. Set a default trend: requires 3 max and 3 min points
@@ -674,12 +658,6 @@ class FuzzyMarketState():
       p6_idx = row.P6_idx
       log += 'p0={}, p1={}, p2={}, p3={}, p4={}, p5={}, p6={} '.format(p0_idx, p1_idx, p2_idx, p3_idx, p4_idx, p5_idx, p6_idx)
 
-      # if MACD_main or RSI at P6_idx is Nan, discard
-      if pd.isna(df.MACD_main.iloc[p6_idx]) or pd.isna(df.RSI.iloc[p6_idx]):
-        log += 'error-p6_isNaN '
-        logger.debug(log)
-        return
-
       # set divergence type case
       class DivType():
         def __init__(self):
@@ -691,6 +669,11 @@ class FuzzyMarketState():
       reg_bear_div = DivType()
       hid_bull_div = DivType()
       hid_bear_div = DivType()
+
+      if  pd.isna(df.MACD_main.iloc[row.P6_idx]) or pd.isna(df.RSI.iloc[row.P6_idx]):              
+        log += 'error-P6-isNaN '
+        logger.debug(log)
+        return
 
       # Price check---
       # check regular-bearish-div
@@ -750,178 +733,155 @@ class FuzzyMarketState():
       if reg_bear_div.enabled==True:
         _rng1 = int((reg_bear_div.to - reg_bear_div.ifrom)/3)
         _rng2 = int((reg_bear_div.ifrom - reg_bear_div.idoubfrom)/3)
+        log += 'reg-bear rng1={} rng2={}'.format(_rng1, _rng2)
         _macd_max_to_v = df.MACD_main[reg_bear_div.to - _rng1 : reg_bear_div.to + _rng1].max()
         _macd_max_from_v = df.MACD_main[reg_bear_div.ifrom - _rng1 : reg_bear_div.ifrom + _rng1].max()
-        _macd_max_2from_v = df.MACD_main[reg_bear_div.ifrom - _rng2 : reg_bear_div.idoubfrom + _rng2].max()
+        _macd_max_2from_v = df.MACD_main[reg_bear_div.idoubfrom - _rng2 : reg_bear_div.idoubfrom + _rng2].max()
         _rsi_max_to_v = df.RSI[reg_bear_div.to - _rng1 : reg_bear_div.to + _rng1].max()
         _rsi_max_from_v = df.RSI[reg_bear_div.ifrom - _rng1 : reg_bear_div.ifrom + _rng1].max()
-        _rsi_max_2from_v = df.RSI[reg_bear_div.ifrom - _rng2 : reg_bear_div.idoubfrom + _rng2].max()
+        _rsi_max_2from_v = df.RSI[reg_bear_div.idoubfrom - _rng2 : reg_bear_div.idoubfrom + _rng2].max()
 
-        _macd_max_to_i = df.MACD_main[reg_bear_div.to - _rng1 : reg_bear_div.to + _rng1].idxmax()
+        _macd_max_to_i = min(df.MACD_main[reg_bear_div.to - _rng1 : reg_bear_div.to + _rng1].idxmax(), df.index.values[-1])
         _macd_max_from_i = df.MACD_main[reg_bear_div.ifrom - _rng1 : reg_bear_div.ifrom + _rng1].idxmax()
-        _macd_max_2from_i = df.MACD_main[reg_bear_div.ifrom - _rng2 : reg_bear_div.idoubfrom + _rng2].idxmax()
-        _rsi_max_to_i = df.RSI[reg_bear_div.to - _rng1 : reg_bear_div.to + _rng1].idxmax()
+        _macd_max_2from_i = df.MACD_main[reg_bear_div.idoubfrom - _rng2 : reg_bear_div.idoubfrom + _rng2].idxmax()
+        _rsi_max_to_i = min(df.RSI[reg_bear_div.to - _rng1 : reg_bear_div.to + _rng1].idxmax(), df.index.values[-1])
         _rsi_max_from_i = df.RSI[reg_bear_div.ifrom - _rng1 : reg_bear_div.ifrom + _rng1].idxmax()
-        _rsi_max_2from_i = df.RSI[reg_bear_div.ifrom - _rng2 : reg_bear_div.idoubfrom + _rng2].idxmax()
+        _rsi_max_2from_i = df.RSI[reg_bear_div.idoubfrom - _rng2 : reg_bear_div.idoubfrom + _rng2].idxmax()
         
         if _macd_max_from_v > _macd_max_to_v:
           # check double divergence
           if df.ZIGZAG.iloc[reg_bear_div.idoubfrom] < df.ZIGZAG.iloc[reg_bear_div.ifrom] and _macd_max_2from_v > _macd_max_from_v:
             log += 'doub-reg-bear-div on macd ifrom {} to {}'.format(_macd_max_2from_i, _macd_max_from_i)
-            df.at[reg_bear_div.to, 'DIV_DOUB_REG_BEAR_MACD'] = 1.0
-            df.at[reg_bear_div.to, 'DIV_DOUB_REG_BEAR_MACD_FROM'] = _macd_max_2from_i
+            df.DIV_DOUB_REG_BEAR_MACD.iloc[_macd_max_2from_i:_macd_max_to_i] = 1.0
           # else simple divergence
           else:
             log += 'reg-bear-div on macd ifrom {} to {}'.format(_macd_max_from_i, _macd_max_to_i)
-            df.at[reg_bear_div.to, 'DIV_REG_BEAR_MACD'] = 1.0
-            df.at[reg_bear_div.to, 'DIV_REG_BEAR_MACD_FROM'] = _macd_max_from_i
+            df.DIV_REG_BEAR_MACD.iloc[_macd_max_from_i:_macd_max_to_i] = 1.0
         if _rsi_max_from_v > _rsi_max_to_v:
           # check double divergence
           if df.ZIGZAG.iloc[reg_bear_div.idoubfrom] < df.ZIGZAG.iloc[reg_bear_div.ifrom] and _rsi_max_2from_v > _rsi_max_from_v:
             log += 'doub-reg-bear-div on rsi ifrom {} to {}'.format(_rsi_max_2from_i, _rsi_max_to_i)
-            df.at[reg_bear_div.to, 'DIV_DOUB_REG_BEAR_RSI'] = 1.0
-            df.at[reg_bear_div.to, 'DIV_DOUB_REG_BEAR_RSI_FROM'] = _rsi_max_2from_i
+            df.DIV_DOUB_REG_BEAR_RSI.iloc[_rsi_max_2from_i:_rsi_max_to_i] = 1.0
           # else simple divergence
           else:
             log += 'reg-bear-div on rsi ifrom {} to {}'.format(_rsi_max_from_i, _rsi_max_to_i)
-            df.at[reg_bear_div.to, 'DIV_REG_BEAR_RSI'] = 1.0
-            df.at[reg_bear_div.to, 'DIV_REG_BEAR_RSI_FROM'] = _rsi_max_from_i
-
-      try:
-        _rng1 = int((hid_bear_div.to - hid_bear_div.ifrom)/3)
-        _rng2 = int((hid_bear_div.ifrom - hid_bear_div.idoubfrom)/3)
-        _macd_max_to_v = df.MACD_main[hid_bear_div.to - _rng1 : hid_bear_div.to + _rng1].max()
-        _macd_max_from_v = df.MACD_main[hid_bear_div.ifrom - _rng1 : hid_bear_div.ifrom + _rng1].max()
-        _macd_max_2from_v = df.MACD_main[hid_bear_div.ifrom - _rng2 : hid_bear_div.idoubfrom + _rng2].max()
-        _rsi_max_to_v = df.RSI[hid_bear_div.to - _rng1 : hid_bear_div.to + _rng1].max()
-        _rsi_max_from_v = df.RSI[hid_bear_div.ifrom - _rng1 : hid_bear_div.ifrom + _rng1].max()
-        _rsi_max_2from_v = df.RSI[hid_bear_div.ifrom - _rng2 : hid_bear_div.idoubfrom + _rng2].max()
-
-        _macd_max_to_i = df.MACD_main[hid_bear_div.to - _rng1 : hid_bear_div.to + _rng1].idxmax()
-        _macd_max_from_i = df.MACD_main[hid_bear_div.ifrom - _rng1 : hid_bear_div.ifrom + _rng1].idxmax()
-        _macd_max_2from_i = df.MACD_main[hid_bear_div.ifrom - _rng2 : hid_bear_div.idoubfrom + _rng2].idxmax()
-        _rsi_max_to_i = df.RSI[hid_bear_div.to - _rng1 : hid_bear_div.to + _rng1].idxmax()
-        _rsi_max_from_i = df.RSI[hid_bear_div.ifrom - _rng1 : hid_bear_div.ifrom + _rng1].idxmax()
-        _rsi_max_2from_i = df.RSI[hid_bear_div.ifrom - _rng2 : hid_bear_div.idoubfrom + _rng2].idxmax()
-      except ValueError:
-        log += 'error-NaN hid_bear_div.to={} .from={} .doubfrom={} '.format(hid_bear_div.to, hid_bear_div.ifrom, hid_bear_div.idoubfrom)
-        logger.error(log)
+            df.DIV_REG_BEAR_RSI.iloc[_rsi_max_from_i:_rsi_max_to_i] = 1.0
 
       # checking hidden-bearish-div 
-      if hid_bear_div.enabled==True and _macd_max_from_v < _macd_max_to_v:
-        # check double divergence
-        if df.ZIGZAG.iloc[hid_bear_div.idoubfrom] > df.ZIGZAG.iloc[hid_bear_div.ifrom] and _macd_max_2from_v < _macd_max_from_v:
-          log += 'doub-hid-bear-div on macd ifrom {} to {}'.format(_macd_max_2from_i, _macd_max_to_i)
-          df.at[hid_bear_div.to, 'DIV_DOUB_HID_BEAR_MACD'] = 1.0
-          df.at[hid_bear_div.to, 'DIV_DOUB_HID_BEAR_MACD_FROM'] = _macd_max_2from_i
-        # else simple divergence
-        else:
-          log += 'hid-bear-div on macd ifrom {} to {}'.format(_macd_max_from_i, _macd_max_to_i)
-          df.at[hid_bear_div.to, 'DIV_HID_BEAR_MACD'] = 1.0
-          df.at[hid_bear_div.to, 'DIV_HID_BEAR_MACD_FROM'] = _macd_max_from_i
-      if hid_bear_div.enabled==True and _rsi_max_from_v < _rsi_max_to_v:
-        # check double divergence
-        if df.ZIGZAG.iloc[hid_bear_div.idoubfrom] > df.ZIGZAG.iloc[hid_bear_div.ifrom] and _rsi_max_2from_v < _rsi_max_from_v:
-          log += 'doub-hid-bear-div on rsi ifrom {} to {}'.format(_rsi_max_2from_i, _rsi_max_to_i)
-          df.at[hid_bear_div.to, 'DIV_DOUB_HID_BEAR_RSI'] = 1.0
-          df.at[hid_bear_div.to, 'DIV_DOUB_HID_BEAR_RSI_FROM'] = _rsi_max_2from_i
-        # else simple divergence
-        else:
-          log += 'hid-bear-div on rsi ifrom {} to {}'.format(_rsi_max_from_i, _rsi_max_to_i)
-          df.at[hid_bear_div.to, 'DIV_HID_BEAR_RSI'] = 1.0
-          df.at[hid_bear_div.to, 'DIV_HID_BEAR_RSI_FROM'] = _rsi_max_from_i
+      if hid_bear_div.enabled==True:
+        _rng1 = int((hid_bear_div.to - hid_bear_div.ifrom)/3)
+        _rng2 = int((hid_bear_div.ifrom - hid_bear_div.idoubfrom)/3)
+        log += 'hid-bear rng1={} rng2={}'.format(_rng1, _rng2)
+        _macd_max_to_v = df.MACD_main[hid_bear_div.to - _rng1 : hid_bear_div.to + _rng1].max()
+        _macd_max_from_v = df.MACD_main[hid_bear_div.ifrom - _rng1 : hid_bear_div.ifrom + _rng1].max()
+        _macd_max_2from_v = df.MACD_main[hid_bear_div.idoubfrom - _rng2 : hid_bear_div.idoubfrom + _rng2].max()
+        _rsi_max_to_v = df.RSI[hid_bear_div.to - _rng1 : hid_bear_div.to + _rng1].max()
+        _rsi_max_from_v = df.RSI[hid_bear_div.ifrom - _rng1 : hid_bear_div.ifrom + _rng1].max()
+        _rsi_max_2from_v = df.RSI[hid_bear_div.idoubfrom - _rng2 : hid_bear_div.idoubfrom + _rng2].max()
 
-      try:
-        _rng1 = int((hid_bull_div.to - hid_bull_div.ifrom)/3)
-        _rng2 = int((hid_bull_div.ifrom - hid_bull_div.idoubfrom)/3)
+        _macd_max_to_i = min(df.MACD_main[hid_bear_div.to - _rng1 : hid_bear_div.to + _rng1].idxmax(), df.index.values[-1])
+        _macd_max_from_i = df.MACD_main[hid_bear_div.ifrom - _rng1 : hid_bear_div.ifrom + _rng1].idxmax()
+        _macd_max_2from_i = df.MACD_main[hid_bear_div.idoubfrom - _rng2 : hid_bear_div.idoubfrom + _rng2].idxmax()
+        _rsi_max_to_i = min(df.RSI[hid_bear_div.to - _rng1 : hid_bear_div.to + _rng1].idxmax(), df.index.values[-1])
+        _rsi_max_from_i = df.RSI[hid_bear_div.ifrom - _rng1 : hid_bear_div.ifrom + _rng1].idxmax()
+        _rsi_max_2from_i = df.RSI[hid_bear_div.idoubfrom - _rng2 : hid_bear_div.idoubfrom + _rng2].idxmax()
 
-        _macd_min_to_v = df.MACD_main[hid_bull_div.to - _rng1 : hid_bull_div.to + _rng1].min()
-        _macd_min_from_v = df.MACD_main[hid_bull_div.ifrom - _rng1 : hid_bull_div.ifrom + _rng1].min()
-        _macd_min_2from_v = df.MACD_main[hid_bull_div.ifrom - _rng2 : hid_bull_div.idoubfrom + _rng2].min()
-        _rsi_min_to_v = df.RSI[hid_bull_div.to - _rng1 : hid_bull_div.to + _rng1].min()
-        _rsi_min_from_v = df.RSI[hid_bull_div.ifrom - _rng1 : hid_bull_div.ifrom + _rng1].min()
-        _rsi_min_2from_v = df.RSI[hid_bull_div.ifrom - _rng2 : hid_bull_div.idoubfrom + _rng2].min()
-
-        _macd_min_to_i = df.MACD_main[hid_bull_div.to - _rng1 : hid_bull_div.to + _rng1].idxmin()
-        _macd_min_from_i = df.MACD_main[hid_bull_div.ifrom - _rng1 : hid_bull_div.ifrom + _rng1].idxmin()
-        _macd_min_2from_i = df.MACD_main[hid_bull_div.ifrom - _rng2 : hid_bull_div.idoubfrom + _rng2].idxmin()
-        _rsi_min_to_i = df.RSI[hid_bull_div.to - _rng1 : hid_bull_div.to + _rng1].idxmin()
-        _rsi_min_from_i = df.RSI[hid_bull_div.ifrom - _rng1 : hid_bull_div.ifrom + _rng1].idxmin()
-        _rsi_min_2from_i = df.RSI[hid_bull_div.ifrom - _rng2 : hid_bull_div.idoubfrom + _rng2].idxmin()
-      except ValueError:
-        log += 'error-NaN hid_bull_div.to={} .from={} .doubfrom={} '.format(hid_bull_div.to, hid_bull_div.ifrom, hid_bull_div.idoubfrom)
-        logger.error(log)
+        if _macd_max_from_v < _macd_max_to_v:
+          # check double divergence
+          if df.ZIGZAG.iloc[hid_bear_div.idoubfrom] > df.ZIGZAG.iloc[hid_bear_div.ifrom] and _macd_max_2from_v < _macd_max_from_v:
+            log += 'doub-hid-bear-div on macd ifrom {} to {}'.format(_macd_max_2from_i, _macd_max_to_i)
+            df.DIV_DOUB_HID_BEAR_MACD.iloc[_macd_max_2from_i:_macd_max_to_i] = 1.0
+          # else simple divergence
+          else:
+            log += 'hid-bear-div on macd ifrom {} to {}'.format(_macd_max_from_i, _macd_max_to_i)
+            df.DIV_HID_BEAR_MACD.iloc[_macd_max_from_i:_macd_max_to_i] = 1.0
+        if _rsi_max_from_v < _rsi_max_to_v:
+          # check double divergence
+          if df.ZIGZAG.iloc[hid_bear_div.idoubfrom] > df.ZIGZAG.iloc[hid_bear_div.ifrom] and _rsi_max_2from_v < _rsi_max_from_v:
+            log += 'doub-hid-bear-div on rsi ifrom {} to {}'.format(_rsi_max_2from_i, _rsi_max_to_i)
+            df.DIV_DOUB_HID_BEAR_RSI.iloc[_rsi_max_2from_i:_rsi_max_to_i] = 1.0
+          # else simple divergence
+          else:
+            log += 'hid-bear-div on rsi ifrom {} to {}'.format(_rsi_max_from_i, _rsi_max_to_i)
+            df.DIV_HID_BEAR_RSI.iloc[_rsi_max_from_i:_rsi_max_to_i] = 1.0
 
       # checking hidden-bullish-div
-      if hid_bull_div.enabled==True and _macd_min_from_v > _macd_min_to_v:
-        # check double divergence
-        if df.ZIGZAG.iloc[hid_bull_div.idoubfrom] < df.ZIGZAG.iloc[hid_bull_div.ifrom] and _macd_min_2from_v > _macd_min_from_v:
-          log += 'doub-hid-bull-div on macd ifrom {} to {}'.format(_macd_min_2from_i, _macd_min_to_i)
-          df.at[hid_bull_div.to, 'DIV_DOUB_HID_BULL_MACD'] = 1.0
-          df.at[hid_bull_div.to, 'DIV_DOUB_HID_BULL_MACD_FROM'] = _macd_min_2from_i
-        # else simple divergence
-        else:
-          log += 'hid-bull-div on macd ifrom {} to {}'.format(_macd_min_from_i, _macd_min_to_i)
-          df.at[hid_bull_div.to, 'DIV_HID_BULL_MACD'] = 1.0
-          df.at[hid_bull_div.to, 'DIV_HID_BULL_MACD_FROM'] = _macd_min_from_i
-      if hid_bull_div.enabled==True and _rsi_min_from_v > _rsi_min_to_v:
-        # check double divergence
-        if df.ZIGZAG.iloc[hid_bull_div.idoubfrom] < df.ZIGZAG.iloc[hid_bull_div.ifrom] and _rsi_min_2from_v > _rsi_min_from_v:
-          log += 'doub-hid-bull-div on rsi ifrom {} to {}'.format(_rsi_min_2from_i, _rsi_min_to_i)
-          df.at[hid_bull_div.to, 'DIV_DOUB_HID_BULL_RSI'] = 1.0
-          df.at[hid_bull_div.to, 'DIV_DOUB_HID_BULL_RSI_FROM'] = _rsi_min_2from_i
-        # else simple divergence
-        else:
-          log += 'hid-bull-div on rsi ifrom {} to {}'.format(_rsi_min_from_i, _rsi_min_to_i)
-          df.at[hid_bull_div.to, 'DIV_HID_BULL_RSI'] = 1.0
-          df.at[hid_bull_div.to, 'DIV_HID_BULL_RSI_FROM'] = _rsi_min_from_i
+      if hid_bull_div.enabled==True:
+        _rng1 = int((hid_bull_div.to - hid_bull_div.ifrom)/3)
+        _rng2 = int((hid_bull_div.ifrom - hid_bull_div.idoubfrom)/3)
+        log += 'hid-bull rng1={} rng2={}'.format(_rng1, _rng2)
+        _macd_min_to_v = df.MACD_main[hid_bull_div.to - _rng1 : hid_bull_div.to + _rng1].min()
+        _macd_min_from_v = df.MACD_main[hid_bull_div.ifrom - _rng1 : hid_bull_div.ifrom + _rng1].min()
+        _macd_min_2from_v = df.MACD_main[hid_bull_div.idoubfrom - _rng2 : hid_bull_div.idoubfrom + _rng2].min()
+        _rsi_min_to_v = df.RSI[hid_bull_div.to - _rng1 : hid_bull_div.to + _rng1].min()
+        _rsi_min_from_v = df.RSI[hid_bull_div.ifrom - _rng1 : hid_bull_div.ifrom + _rng1].min()
+        _rsi_min_2from_v = df.RSI[hid_bull_div.idoubfrom - _rng2 : hid_bull_div.idoubfrom + _rng2].min()
 
-      try:
+        _macd_min_to_i = min(df.MACD_main[hid_bull_div.to - _rng1 : hid_bull_div.to + _rng1].idxmin(), df.index.values[-1])
+        _macd_min_from_i = df.MACD_main[hid_bull_div.ifrom - _rng1 : hid_bull_div.ifrom + _rng1].idxmin()
+        _macd_min_2from_i = df.MACD_main[hid_bull_div.idoubfrom - _rng2 : hid_bull_div.idoubfrom + _rng2].idxmin()
+        _rsi_min_to_i = min(df.RSI[hid_bull_div.to - _rng1 : hid_bull_div.to + _rng1].idxmin(), df.index.values[-1])
+        _rsi_min_from_i = df.RSI[hid_bull_div.ifrom - _rng1 : hid_bull_div.ifrom + _rng1].idxmin()
+        _rsi_min_2from_i = df.RSI[hid_bull_div.idoubfrom - _rng2 : hid_bull_div.idoubfrom + _rng2].idxmin()
+
+        if _macd_min_from_v > _macd_min_to_v:
+          # check double divergence
+          if df.ZIGZAG.iloc[hid_bull_div.idoubfrom] < df.ZIGZAG.iloc[hid_bull_div.ifrom] and _macd_min_2from_v > _macd_min_from_v:
+            log += 'doub-hid-bull-div on macd ifrom {} to {}'.format(_macd_min_2from_i, _macd_min_to_i)
+            df.DIV_DOUB_HID_BULL_MACD.iloc[_macd_min_2from_i:_macd_min_to_i] = 1.0
+          # else simple divergence
+          else:
+            log += 'hid-bull-div on macd ifrom {} to {}'.format(_macd_min_from_i, _macd_min_to_i)
+            df.DIV_HID_BULL_MACD.iloc[_macd_min_from_i:_macd_min_to_i] = 1.0
+        if _rsi_min_from_v > _rsi_min_to_v:
+          # check double divergence
+          if df.ZIGZAG.iloc[hid_bull_div.idoubfrom] < df.ZIGZAG.iloc[hid_bull_div.ifrom] and _rsi_min_2from_v > _rsi_min_from_v:
+            log += 'doub-hid-bull-div on rsi ifrom {} to {}'.format(_rsi_min_2from_i, _rsi_min_to_i)
+            df.DIV_DOUB_HID_BULL_RSI.iloc[_rsi_min_2from_i:_rsi_min_to_i] = 1.0
+          # else simple divergence
+          else:
+            log += 'hid-bull-div on rsi ifrom {} to {}'.format(_rsi_min_from_i, _rsi_min_to_i)
+            df.DIV_HID_BULL_RSI.iloc[_rsi_min_from_i:_rsi_min_to_i] = 1.0
+
+      # checking regular-bullish-div
+      if reg_bull_div.enabled==True:
         _rng1 = int((reg_bull_div.to - reg_bull_div.ifrom)/3)
         _rng2 = int((reg_bull_div.ifrom - reg_bull_div.idoubfrom)/3)
-
+        log += 'reg-bull rng1={} rng2={}'.format(_rng1, _rng2)
         _macd_min_to_v = df.MACD_main[reg_bull_div.to - _rng1 : reg_bull_div.to + _rng1].min()
         _macd_min_from_v = df.MACD_main[reg_bull_div.ifrom - _rng1 : reg_bull_div.ifrom + _rng1].min()
-        _macd_min_2from_v = df.MACD_main[reg_bull_div.ifrom - _rng2 : reg_bull_div.idoubfrom + _rng2].min()
+        _macd_min_2from_v = df.MACD_main[reg_bull_div.idoubfrom - _rng2 : reg_bull_div.idoubfrom + _rng2].min()
         _rsi_min_to_v = df.RSI[reg_bull_div.to - _rng1 : reg_bull_div.to + _rng1].min()
         _rsi_min_from_v = df.RSI[reg_bull_div.ifrom - _rng1 : reg_bull_div.ifrom + _rng1].min()
-        _rsi_min_2from_v = df.RSI[reg_bull_div.ifrom - _rng2 : reg_bull_div.idoubfrom + _rng2].min()
+        _rsi_min_2from_v = df.RSI[reg_bull_div.idoubfrom - _rng2 : reg_bull_div.idoubfrom + _rng2].min()
 
-        _macd_min_to_i = df.MACD_main[reg_bull_div.to - _rng1 : reg_bull_div.to + _rng1].idxmin()
+        _macd_min_to_i = min(df.MACD_main[reg_bull_div.to - _rng1 : reg_bull_div.to + _rng1].idxmin(), df.index.values[-1])
         _macd_min_from_i = df.MACD_main[reg_bull_div.ifrom - _rng1 : reg_bull_div.ifrom + _rng1].idxmin()
-        _macd_min_2from_i = df.MACD_main[reg_bull_div.ifrom - _rng2 : reg_bull_div.idoubfrom + _rng2].idxmin()
-        _rsi_min_to_i = df.RSI[reg_bull_div.to - _rng1 : reg_bull_div.to + _rng1].idxmin()
+        _macd_min_2from_i = df.MACD_main[reg_bull_div.idoubfrom - _rng2 : reg_bull_div.idoubfrom + _rng2].idxmin()
+        _rsi_min_to_i = min(df.RSI[reg_bull_div.to - _rng1 : reg_bull_div.to + _rng1].idxmin(), df.index.values[-1])
         _rsi_min_from_i = df.RSI[reg_bull_div.ifrom - _rng1 : reg_bull_div.ifrom + _rng1].idxmin()
-        _rsi_min_2from_i = df.RSI[reg_bull_div.ifrom - _rng2 : reg_bull_div.idoubfrom + _rng2].idxmin()
-      except ValueError:
-        log += 'error-NaN reg_bull_div.to={} .from={} .doubfrom={} '.format(reg_bull_div.to, reg_bull_div.ifrom, reg_bull_div.idoubfrom)
-        logger.error(log)
+        _rsi_min_2from_i = df.RSI[reg_bull_div.idoubfrom - _rng2 : reg_bull_div.idoubfrom + _rng2].idxmin()
 
-      # checking regular-bullish-div
-      if reg_bull_div.enabled==True and _macd_min_from_v < _macd_min_to_v:
-        # check double divergence
-        if df.ZIGZAG.iloc[reg_bull_div.idoubfrom] > df.ZIGZAG.iloc[reg_bull_div.ifrom] and _macd_min_2from_v < _macd_min_from_v:
-          log += 'doub-reg-bull-div on macd ifrom {} to {}'.format(_macd_min_2from_i, _macd_min_to_i)
-          df.at[reg_bull_div.to, 'DIV_DOUB_REG_BULL_MACD'] = 1.0
-          df.at[reg_bull_div.to, 'DIV_DOUB_REG_BULL_MACD_FROM'] = _macd_min_2from_i
-        # else simple divergence
-        else:
-          log += 'reg-bull-div on macd ifrom {} to {}'.format(_macd_min_from_i, _macd_min_to_i)
-          df.at[reg_bull_div.to, 'DIV_REG_BULL_MACD'] = 1.0
-          df.at[reg_bull_div.to, 'DIV_REG_BULL_MACD_FROM'] = _macd_min_from_i
-      
-      # checking regular-bullish-div
-      if reg_bull_div.enabled==True and _rsi_min_from_v < _rsi_min_to_v:
-        # check double divergence
-        if df.ZIGZAG.iloc[reg_bull_div.idoubfrom] > df.ZIGZAG.iloc[reg_bull_div.ifrom] and _rsi_min_2from_v < _rsi_min_from_v:
-          log += 'doub-reg-bull-div on rsi ifrom {} to {}'.format(_rsi_min_2from_i, _rsi_min_to_i)
-          df.at[reg_bull_div.to, 'DIV_DOUB_REG_BULL_RSI'] = 1.0
-          df.at[reg_bull_div.to, 'DIV_DOUB_REG_BULL_RSI_FROM'] = _rsi_min_2from_i
-        # else simple divergence
-        else:
-          log += 'reg-bull-div on rsi ifrom {} to {}'.format(_rsi_min_from_i, _rsi_min_to_i)
-          df.at[reg_bull_div.to, 'DIV_REG_BULL_RSI'] = 1.0
-          df.at[reg_bull_div.to, 'DIV_REG_BULL_RSI_FROM'] = _rsi_min_from_i
+        if _macd_min_from_v < _macd_min_to_v:
+          # check double divergence
+          if df.ZIGZAG.iloc[reg_bull_div.idoubfrom] > df.ZIGZAG.iloc[reg_bull_div.ifrom] and _macd_min_2from_v < _macd_min_from_v:
+            log += 'doub-reg-bull-div on macd ifrom {} to {}'.format(_macd_min_2from_i, _macd_min_to_i)
+            df.DIV_DOUB_REG_BULL_MACD.iloc[_macd_min_2from_i:_macd_min_to_i] = 1.0
+          # else simple divergence
+          else:
+            log += 'reg-bull-div on macd ifrom {} to {}'.format(_macd_min_from_i, _macd_min_to_i)
+            df.DIV_REG_BULL_MACD.iloc[_macd_min_from_i:_macd_min_to_i] = 1.0
+        
+        # checking regular-bullish-div
+        if _rsi_min_from_v < _rsi_min_to_v:
+          # check double divergence
+          if df.ZIGZAG.iloc[reg_bull_div.idoubfrom] > df.ZIGZAG.iloc[reg_bull_div.ifrom] and _rsi_min_2from_v < _rsi_min_from_v:
+            log += 'doub-reg-bull-div on rsi ifrom {} to {}'.format(_rsi_min_2from_i, _rsi_min_to_i)
+            df.DIV_DOUB_REG_BULL_RSI.iloc[_rsi_min_2from_i:_rsi_min_to_i] = 1.0
+          # else simple divergence
+          else:
+            log += 'reg-bull-div on rsi ifrom {} to {}'.format(_rsi_min_from_i, _rsi_min_to_i)
+            df.DIV_REG_BULL_RSI.iloc[_rsi_min_from_i:_rsi_min_to_i] = 1.0
 
       logger.debug(log)
       return
@@ -936,11 +896,11 @@ class FuzzyMarketState():
 
     # apply divergence strength
     def bullish_strength(x, df):
-      return max((0.5*x.DIV_DOUB_REG_BULL_MACD) + (0.5*x.DIV_DOUB_REG_BULL_RSI) + (0.4*x.DIV_REG_BULL_MACD) + (0.4*x.DIV_REG_BULL_RSI),
-                 (0.5*x.DIV_DOUB_HID_BULL_MACD) + (0.5*x.DIV_DOUB_HID_BULL_RSI) + (0.4*x.DIV_HID_BULL_MACD) + (0.4*x.DIV_HID_BULL_RSI))
+      return min(1.0, max((0.8*x.DIV_DOUB_REG_BULL_MACD) + (0.8*x.DIV_DOUB_REG_BULL_RSI) + (0.6*x.DIV_REG_BULL_MACD) + (0.6*x.DIV_REG_BULL_RSI),
+                 (0.8*x.DIV_DOUB_HID_BULL_MACD) + (0.8*x.DIV_DOUB_HID_BULL_RSI) + (0.6*x.DIV_HID_BULL_MACD) + (0.6*x.DIV_HID_BULL_RSI)))
     def bearish_strength(x, df):
-      return max((0.5*x.DIV_DOUB_REG_BEAR_MACD) + (0.5*x.DIV_DOUB_REG_BEAR_RSI) + (0.4*x.DIV_REG_BEAR_MACD) + (0.4*x.DIV_REG_BEAR_RSI),
-                 (0.5*x.DIV_DOUB_HID_BEAR_MACD) + (0.5*x.DIV_DOUB_HID_BEAR_RSI) + (0.4*x.DIV_HID_BEAR_MACD) + (0.4*x.DIV_HID_BEAR_RSI))
+      return min(1.0, max((0.8*x.DIV_DOUB_REG_BEAR_MACD) + (0.8*x.DIV_DOUB_REG_BEAR_RSI) + (0.6*x.DIV_REG_BEAR_MACD) + (0.6*x.DIV_REG_BEAR_RSI),
+                 (0.8*x.DIV_DOUB_HID_BEAR_MACD) + (0.8*x.DIV_DOUB_HID_BEAR_RSI) + (0.6*x.DIV_HID_BEAR_MACD) + (0.6*x.DIV_HID_BEAR_RSI)))
 
     df['BULLISH_DIVERGENCE'] = df.apply(lambda x: bullish_strength(x, df), axis=1)
     df['BEARISH_DIVERGENCE'] = df.apply(lambda x: bearish_strength(x, df), axis=1)
@@ -1379,166 +1339,164 @@ class FuzzyMarketState():
         self.rsi_shapes = []
         self.bullval = nan_value
         self.bearval = nan_value
-        self.bullx0 = 0
-        self.bullx1 = 0
-        self.bearx0 = 0
-        self.bearx1 = 0
+        self.regbullmacdx0 = 0
+        self.hidbullmacdx0 = 0
+        self.regbullmacdx1 = 0
+        self.hidbullmacdx1 = 0
+        self.regbearmacdx0 = 0
+        self.hidbearmacdx0 = 0
+        self.regbearmacdx1 = 0
+        self.hidbearmacdx1 = 0
+        self.regbullrsix0 = 0
+        self.hidbullrsix0 = 0
+        self.regbullrsix1 = 0
+        self.hidbullrsix1 = 0
+        self.regbearrsix0 = 0
+        self.hidbearrsix0 = 0
+        self.regbearrsix1 = 0
+        self.hidbearrsix1 = 0
       def build_shapes(self, x, df, nan_value=0.0):
         # process div-markers
         log = ''
-        if x.DIV_DOUB_REG_BEAR_MACD == 1:
-          _x0 = x.DIV_DOUB_REG_BEAR_MACD_FROM
-          log += ' doub-reg-bear-macd from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+        if x.DIV_DOUB_REG_BEAR_MACD > 0.0 or x.DIV_REG_BEAR_MACD > 0.0:
+          if self.regbearmacdx0 == 0:
+            self.regbearmacdx0 = x.name
+            self.regbearmacdx1 = x.name
+          else:
+            self.regbearmacdx1 = x.name
+        elif self.regbearmacdx0 > 0:
+          _x0 = self.regbearmacdx0
+          _x1 = self.regbearmacdx1
+          self.regbearmacdx0 = 0
+          self.regbearmacdx1 = 0
+          log += ' doub-reg-bear-macd from {} to {}'.format(_x0, _x1)
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': _x1, 'y1': df.MACD_main.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': _x1, 'y1': df.HIGH.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_DOUB_REG_BEAR_RSI == 1:
-          _x0 = x.DIV_DOUB_REG_BEAR_RSI_FROM
-          log += ' doub-reg-bear-rsi from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+
+        if x.DIV_DOUB_REG_BEAR_RSI > 0.0 or x.DIV_REG_BEAR_RSI > 0.0:
+          if self.regbearrsix0 == 0:
+            self.regbearrsix0 = x.name
+            self.regbearrsix1 = x.name
+          else:
+            self.regbearrsix1 = x.name
+        elif self.regbearrsix0 > 0:
+          _x0 = self.regbearrsix0
+          _x1 = self.regbearrsix1
+          self.regbearrsix0 = 0
+          self.regbearrsix1 = 0
+          log += ' doub-reg-bear-rsi from {} to {}'.format(_x0, _x1)
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': _x1, 'y1': df.RSI.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': _x1, 'y1': df.HIGH.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_REG_BEAR_MACD == 1:
-          _x0 = x.DIV_REG_BEAR_MACD_FROM
-          log += ' reg-bear-macd from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_REG_BEAR_RSI == 1:
-          _x0 = x.DIV_REG_BEAR_RSI_FROM
-          log += ' reg-bear-rsi from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_DOUB_REG_BULL_MACD == 1:
-          _x0 = x.DIV_DOUB_REG_BULL_MACD_FROM
-          log += ' doub-reg-bull-macd from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+
+        if x.DIV_DOUB_REG_BULL_MACD > 0.0 or x.DIV_REG_BULL_MACD > 0.0:
+          if self.regbullmacdx0 == 0:
+            self.regbullmacdx0 = x.name
+            self.regbullmacdx1 = x.name
+          else:
+            self.regbullmacdx1 = x.name
+        elif self.regbullmacdx0 > 0:
+          _x0 = self.regbullmacdx0
+          _x1 = self.regbullmacdx1
+          self.regbullmacdx0 = 0
+          self.regbullmacdx1 = 0
+          log += ' doub-reg-bear-macd from {} to {}'.format(_x0, _x1)
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': _x1, 'y1': df.MACD_main.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': _x1, 'y1': df.HIGH.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_DOUB_REG_BULL_RSI == 1:
-          _x0 = x.DIV_DOUB_REG_BULL_RSI_FROM
-          log += ' doub-reg-bull-rsi from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+
+        if x.DIV_DOUB_REG_BULL_RSI > 0.0 or x.DIV_REG_BULL_RSI > 0.0:
+          if self.regbullrsix0 == 0:
+            self.regbullrsix0 = x.name
+            self.regbullrsix1 = x.name
+          else:
+            self.regbullrsix1 = x.name
+        elif self.regbullrsix0 > 0:
+          _x0 = self.regbullrsix0
+          _x1 = self.regbullrsix1
+          self.regbullrsix0 = 0
+          self.regbullrsix1 = 0
+          log += ' doub-reg-bear-rsi from {} to {}'.format(_x0, _x1)
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': _x1, 'y1': df.RSI.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': _x1, 'y1': df.HIGH.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_REG_BULL_MACD == 1:
-          _x0 = x.DIV_REG_BULL_MACD_FROM
-          log += ' reg-bull-macd from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_REG_BULL_RSI == 1:
-          _x0 = x.DIV_REG_BULL_RSI_FROM
-          log += ' reg-bull-rsi from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_DOUB_HID_BEAR_MACD == 1:
-          _x0 = x.DIV_DOUB_HID_BEAR_MACD_FROM
-          log += ' doub-hid-bear-macd from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+
+        if x.DIV_DOUB_HID_BEAR_MACD > 0.0 or x.DIV_HID_BEAR_MACD > 0.0:
+          if self.hidbearmacdx0 == 0:
+            self.hidbearmacdx0 = x.name
+            self.hidbearmacdx1 = x.name
+          else:
+            self.hidbearmacdx1 = x.name
+        elif self.hidbearmacdx0 > 0:
+          _x0 = self.hidbearmacdx0
+          _x1 = self.hidbearmacdx1
+          self.hidbearmacdx0 = 0
+          self.hidbearmacdx1 = 0
+          log += ' doub-reg-bear-macd from {} to {}'.format(_x0, _x1)
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': _x1, 'y1': df.MACD_main.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': _x1, 'y1': df.HIGH.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_DOUB_HID_BEAR_RSI == 1:
-          _x0 = x.DIV_DOUB_HID_BEAR_RSI_FROM
-          log += ' doub-hid-bear-rsi from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+
+        if x.DIV_DOUB_HID_BEAR_RSI > 0.0 or x.DIV_DOUB_HID_BEAR_RSI > 0.0:
+          if self.hidbearrsix0 == 0:
+            self.hidbearrsix0 = x.name
+            self.hidbearrsix1 = x.name
+          else:
+            self.hidbearrsix1 = x.name
+        elif self.hidbearrsix0 > 0:
+          _x0 = self.hidbearrsix0
+          _x1 = self.hidbearrsix1
+          self.hidbearrsix0 = 0
+          self.hidbearrsix1 = 0
+          log += ' doub-reg-bear-rsi from {} to {}'.format(_x0, _x1)
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': _x1, 'y1': df.RSI.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': _x1, 'y1': df.HIGH.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_HID_BEAR_MACD == 1:
-          _x0 = x.DIV_HID_BEAR_MACD_FROM
-          log += ' hid-bear-macd from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_HID_BEAR_RSI == 1:
-          _x0 = x.DIV_HID_BEAR_RSI_FROM
-          log += ' hid-bear-rsi from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': x.name, 'y1': x.HIGH, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_DOUB_HID_BULL_MACD == 1:
-          _x0 = x.DIV_DOUB_HID_BULL_MACD_FROM
-          log += ' doub-hid-bull-macd from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
+
+        if x.DIV_DOUB_HID_BULL_MACD > 0.0 or x.DIV_HID_BULL_MACD > 0.0:
+          if self.hidbullmacdx0 == 0:
+            self.hidbullmacdx0 = x.name
+            self.hidbullmacdx1 = x.name
+          else:
+            self.hidbullmacdx1 = x.name
+        elif self.hidbullmacdx0 > 0:
+          _x0 = self.hidbullmacdx0
+          _x1 = self.hidbullmacdx1
+          self.hidbullmacdx0 = 0
+          self.hidbullmacdx1 = 0
+          log += ' doub-reg-bear-macd from {} to {}'.format(_x0, _x1)
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': _x1, 'y1': df.MACD_main.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': _x1, 'y1': df.HIGH.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_DOUB_HID_BULL_RSI == 1:
-          _x0 = x.DIV_DOUB_HID_BULL_RSI_FROM
-          log += ' doub-hid-bull-rsi from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
+
+        if x.DIV_DOUB_HID_BULL_RSI > 0.0 or x.DIV_DOUB_HID_BULL_RSI > 0.0:
+          if self.hidbullrsix0 == 0:
+            self.hidbullrsix0 = x.name
+            self.hidbullrsix1 = x.name
+          else:
+            self.hidbullrsix1 = x.name
+        elif self.hidbullrsix0 > 0:
+          _x0 = self.hidbullrsix0
+          _x1 = self.hidbullrsix1
+          self.hidbullrsix0 = 0
+          self.hidbullrsix1 = 0
+          log += ' doub-reg-bear-rsi from {} to {}'.format(_x0, _x1)
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': _x1, 'y1': df.RSI.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
+          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.HIGH.iloc[_x0], 'x1': _x1, 'y1': df.HIGH.iloc[_x1], 
                                     'line': {'color': 'black', 'width': 3, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_HID_BULL_MACD == 1:
-          _x0 = x.DIV_HID_BULL_MACD_FROM
-          log += ' hid-bull-macd from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.MACD_main.iloc[_x0], 'x1': x.name, 'y1': x.MACD_main, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y2'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})   
-        if x.DIV_HID_BULL_RSI == 1:
-          _x0 = x.DIV_HID_BULL_RSI_FROM
-          log += ' hid-bull-rsi from {} to {}'.format(_x0, x.name)
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.RSI.iloc[_x0], 'x1': x.name, 'y1': x.RSI, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y3'})   
-          self.shapes.append({ 'type': 'line', 'x0': _x0, 'y0': df.LOW.iloc[_x0], 'x1': x.name, 'y1': x.LOW, 
-                                    'line': {'color': 'black', 'width': 2, 'dash': 'dashdot'}, 'xref':'x1', 'yref':'y1'})
         if log != '':
           self.__logger.debug(log)
-        # process div-fill-colors
-        if x.BULLISH_DIVERGENCE != nan_value and self.bullx0 == 0:        
-          self.bullx0 = x.name
-          self.bullx1 = x.name
-          self.bullval = x.BULLISH_DIVERGENCE
-        elif x.BULLISH_DIVERGENCE == self.bullval and self.bullx0 != 0:        
-          self.bullx1 = x.name
-        elif x.BULLISH_DIVERGENCE != self.bullval and self.bullx0 != 0:
-          _shape = {'type': 'rect', 'xref': 'x1', 'yref': 'paper',
-                    'x0': self.bullx0,'y0': 0,'x1': self.bullx1,'y1': 1,
-                    'fillcolor': 'green', 'opacity': self.bullval * 0.5, 'line':{'width':0,}}
-          self.shapes.append(_shape)
-          if x.BULLISH_DIVERGENCE != nan_value:
-            self.bullx0 = x.name
-            self.bullx1 = x.name
-            self.bullval = x.BULLISH_DIVERGENCE
-          else:
-            self.bullx0 = 0
-            self.bullx1 = 0
-            self.bullval = nan_value
-        if x.BEARISH_DIVERGENCE != nan_value and self.bearx0 == 0:
-          self.bearx0 = x.name
-          self.bearx1 = x.name
-          self.bearval = x.BEARISH_DIVERGENCE
-        elif x.BEARISH_DIVERGENCE == self.bearval and self.bearx0 != 0:
-          self.bearx1 = x.name
-        elif x.BEARISH_DIVERGENCE != self.bearval and self.bearx0 != 0:
-          _shape = {'type': 'rect', 'xref': 'x1', 'yref': 'paper',
-                    'x0': self.bearx0,'y0': 0,'x1': self.bearx1,'y1': 1,
-                    'fillcolor': 'red', 'opacity': self.bearval * 0.5, 'line':{'width':0,}}        
-          self.shapes.append(_shape)
-          if x.BEARISH_DIVERGENCE != nan_value:
-            self.bearx0 = x.name
-            self.bearx1 = x.name
-            self.bearval = x.BEARISH_DIVERGENCE
-          else:
-            self.bearx0 = 0
-            self.bearx1 = 0
-            self.bearval = nan_value
+      #<--- end of ShapeBuilder.build_shapes
+
     sb = ShapeBuilder(self.__logger)  
     self.__df.apply(lambda x: sb.build_shapes(x, self.__df), axis=1)
     trace_ohlc = go.Ohlc(x=self.__df.index.values, open=self.__df.OPEN, high=self.__df.HIGH, low=self.__df.LOW, close=self.__df.CLOSE, name='Candlestick')
