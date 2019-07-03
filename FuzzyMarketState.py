@@ -2406,6 +2406,52 @@ class FuzzyMarketState():
     _df_result.apply(lambda x: fn_fuzzify_sessions(x, self.__df, self.__logger), axis=1)
     return self.__df
 
+
+  #-------------------------------------------------------------------
+  #-------------------------------------------------------------------
+  def buildStateChangeEvent(self, level=0.5, threshold=0.1):
+    """ Builds column MKT_STAT_CHANGE_EVT in which a boolean value establishes is a market state change
+        is present, due to a change in fuzzy variable memberships functions:
+        Key arguments:
+          level -- Base Level of state change in membership value
+          threshold -- Threshold to confirm state change
+    """
+    fuzzy_vars = self.listFuzzyVariables()
+    _df_result = self.__df[fuzzy_vars].copy()
+    prev_state = []
+    def fn_state_change(x, df, fuzzy_vars, prev_state, logger):
+      logger.debug('------------------------------------------')
+      logger.debug('scanning row[{}]'.format(x.name))
+      # check those vars in prev_state which becomes inactive
+      removed_count = 0
+      for fv in prev_state:
+        if x[fv] < level - threshold:
+          prev_state.remove(fv)
+          removed_count += 1
+          logger.debug('removed {} =>{}'.format(removed_count, fv))
+
+      # selects winning fuzzy_vars of current_state
+      curr_state = prev_state
+      added_count  = 0
+      for fv in fuzzy_vars:
+        if fv not in curr_state:
+          if x[fv] > level + threshold:
+            curr_state.append(fv)
+            added_count += 1
+            logger.debug('added {} =>{}'.format(added_count, fv))
+
+      # check differences from previous state
+      if removed_count + added_count > 0:
+        prev_state = curr_state
+        df.at[x.name, 'MKT_STAT_CHANGE_EVT'] = True
+        logger.debug('STATE_CHANGED')
+      else:
+        df.at[x.name, 'MKT_STAT_CHANGE_EVT'] = False
+        logger.debug('STATE_KEEP')
+
+    _df_result.apply(lambda x: fn_state_change(x, self.__df, fuzzy_vars, prev_state, self.__logger), axis=1)
+    return self.__df
+
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
   def fuzzifyIndicators(self):
