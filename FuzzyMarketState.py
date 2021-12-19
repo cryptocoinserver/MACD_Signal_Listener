@@ -1030,7 +1030,7 @@ class FuzzyMarketState():
     trace_bollinger_down = go.Scatter(x=self.__df.index.values, y=self.__df.BOLLINGER_LO, name='BB_lo', line=scatter.Line(color=color[0], width=1))
     trace_bollinger_width = go.Scatter(x=self.__df.index.values, y=self.__df.BOLLINGER_WIDTH, name='BB_width', line=scatter.Line(color=color[1], width=1))
     trace_bollinger_b = go.Scatter(x=self.__df.index.values, y=self.__df.BOLLINGER_b, name='BB_%b', line=scatter.Line(color=color[2], width=1))
-    fig = plotly.tools.make_subplots(rows=3, cols=1, subplot_titles=('BBands', 'BBands_W', 'BBands_%b'), shared_xaxes=True, vertical_spacing=0.1)
+    fig = plotly.subplots.make_subplots(rows=3, cols=1, subplot_titles=('BBands', 'BBands_W', 'BBands_%b'), shared_xaxes=True, vertical_spacing=0.1)
     fig.append_trace(trace_ohlc, 1, 1)
     fig.append_trace(trace_bollinger_up, 1, 1)
     fig.append_trace(trace_bollinger_mid, 1, 1)
@@ -1055,7 +1055,7 @@ class FuzzyMarketState():
     trace_macd_sig = go.Scatter(x=self.__df.index.values, y=self.__df.MACD_sig, name='MACD_sig', line=scatter.Line(color=color[1], width=1))
     trace_macd_hist = go.Scatter(x=self.__df.index.values, y=self.__df.MACD_hist, name='MACD_hist', line=scatter.Line(color=color[2], width=1))
     trace_rsi = go.Scatter(x=self.__df.index.values, y=self.__df.RSI, name='RSI', line=scatter.Line(color=color[0], width=1))
-    fig = plotly.tools.make_subplots(rows=3, cols=1, subplot_titles=('Price', 'MACD', 'RSI'), shared_xaxes=True, vertical_spacing=0.1)
+    fig = plotly.subplots.make_subplots(rows=3, cols=1, subplot_titles=('Price', 'MACD', 'RSI'), shared_xaxes=True, vertical_spacing=0.1)
     fig.append_trace(trace_ohlc, 1, 1)
     fig.append_trace(trace_macd_main, 2, 1)
     fig.append_trace(trace_macd_sig, 2, 1)
@@ -1503,7 +1503,7 @@ class FuzzyMarketState():
     trace_rsi = go.Scatter(x=self.__df.index.values, y=self.__df.RSI, name='RSI', line=scatter.Line(color=color, width=1))
 
     ohlc_shapes = [sb.shapes]
-    fig = plotly.tools.make_subplots(rows=3, cols=1, subplot_titles=('OHLC', 'MACD', 'RSI'), shared_xaxes=True, vertical_spacing=0.1)
+    fig = plotly.subplots.make_subplots(rows=3, cols=1, subplot_titles=('OHLC', 'MACD', 'RSI'), shared_xaxes=True, vertical_spacing=0.1)
     fig.append_trace(trace_ohlc, 1, 1)
     fig.append_trace(trace_macd_main, 2, 1)
     fig.append_trace(trace_rsi, 3, 1)

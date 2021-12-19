@@ -70,7 +70,7 @@ def datafeed_update(n):
   execution_count = n
 
   # setup plotting figure with 2 rows and 1 column
-  fig = plotly.tools.make_subplots(rows=2, cols=1, subplot_titles=('Price', 'MACD'), shared_xaxes=True, vertical_spacing=0.1)
+  fig = plotly.subplots.make_subplots(rows=2, cols=1, subplot_titles=('Price', 'MACD'), shared_xaxes=True, vertical_spacing=0.1)
   fig['layout'].update(height=600, title='Price & MACD', xaxis=dict(rangeslider=dict(visible = False)))
 
   # updates datafeed samples

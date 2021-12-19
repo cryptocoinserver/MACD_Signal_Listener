@@ -315,7 +315,7 @@ class Divergences():
 
     # Plot ohlc,zigzag, MACD and RSI
     # setup plotting figure with 3 rows and 1 column
-    fig = plotly.tools.make_subplots(rows=3, cols=1, subplot_titles=('Price', 'Oscillators'), shared_xaxes=True, vertical_spacing=0.1)
+    fig = plotly.subplots.make_subplots(rows=3, cols=1, subplot_titles=('Price', 'Oscillators'), shared_xaxes=True, vertical_spacing=0.1)
 
     trace_ohlc = go.Ohlc(x=self.__df.index.values, open=self.__df.OPEN, high=self.__df.HIGH, low=self.__df.LOW, close=self.__df.CLOSE, name='Candlestick')
     fig.append_trace(trace_ohlc, 1, 1)
