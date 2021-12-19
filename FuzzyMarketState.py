@@ -2325,89 +2325,6 @@ class FuzzyMarketState():
 
   #-------------------------------------------------------------------
   #-------------------------------------------------------------------
-  def fuzzifySessionWdows(self):
-    """ Build TKLND_WDOW, LNDNY_WDOW, MKTOPEN_WDOW, MKTCLOSE_WDOW fuzzy-variables within these fuzzy sets:
-      - FarAbove
-      - NearAbove
-      - In
-      - NearBelow
-      - FarBelow
-
-      Each window has different timetables:
-      Tokio from 22h to 08h GMT (MT4: 00h to 10h)
-      Londres from 07h to 16h GMT (MT4: 09h to 18h)
-      NY   from 12h to 23h GMT (MT4: 14h to 01h)
-      OPEN on Sunday at 22h GMT (MT4: monday 00h)
-      CLOSE on Friday at 21h GMT (MT4: friday 23:59)
-    """
-    _df_result = self.__df[['TIME']].copy()
-    _df_result['TIME_OF_DAY'] = _df_result.apply(lambda x: (x.TIME.hour * 60.0 + x.TIME.minute)/1440, axis=1)
-    _df_result['TIME_OF_WEEK'] = _df_result.apply(lambda x: (x.TIME.dayofweek*1440.0 + x.TIME.hour * 60.0 + x.TIME.minute)/7200, axis=1)
-    def fn_fuzzify_sessions(x, df, logger):
-      logger.debug(f'fuzzifying row[{x.name}]=> time_of_day={x.TIME_OF_DAY} time_of_week={x.TIME_OF_WEEK}')
-      f_sets = [{'type':'left-edge',    'name':'FarAbove',  'p0': 450.0/1440, 'p1': 510.0/1440},
-                {'type':'internal-3pt', 'name':'NearAbove', 'p0': 450.0/1440, 'p1': 510.0/1440, 'p2': 570.0/1440},
-                {'type':'internal-3pt', 'name':'InRange',   'p0': 510.0/1440, 'p1': 570.0/1440, 'p2': 630.0/1440},
-                {'type':'internal-3pt', 'name':'NearBelow', 'p0': 570.0/1440, 'p1': 630.0/1440, 'p2': 690.0/1440},
-                {'type':'right-edge'  , 'name':'FarBelow',  'p0': 630.0/1440, 'p1': 690.0/1440}]
-      fz1 = Fuzzifier.fuzzify(x.TIME_OF_DAY, f_sets)
-      df.at[x.name, 'FUZ_TKLND_WDOW'] = x.TIME_OF_DAY
-      df.at[x.name, 'FUZ_TKLND_WDOW_G0'] = fz1[0]
-      df.at[x.name, 'FUZ_TKLND_WDOW_G1'] = fz1[1]
-      df.at[x.name, 'FUZ_TKLND_WDOW_G2'] = fz1[2]
-      df.at[x.name, 'FUZ_TKLND_WDOW_G3'] = fz1[3]
-      df.at[x.name, 'FUZ_TKLND_WDOW_G4'] = fz1[4]       
-      df.at[x.name, 'FUZ_TKLND_WDOW_S-2'] = f_sets[0]['p0']
-      df.at[x.name, 'FUZ_TKLND_WDOW_S-1'] = f_sets[1]['p1']
-      df.at[x.name, 'FUZ_TKLND_WDOW_S0'] = f_sets[2]['p1']
-      df.at[x.name, 'FUZ_TKLND_WDOW_S+1'] = f_sets[3]['p1']
-      df.at[x.name, 'FUZ_TKLND_WDOW_S+2'] = f_sets[4]['p1']    
-      f_sets = [{'type':'left-edge',    'name':'FarAbove',  'p0': 750.0/1440, 'p1': 810.0/1440},
-                {'type':'internal-3pt', 'name':'NearAbove', 'p0': 750.0/1440, 'p1': 810.0/1440, 'p2': 960.0/1440},
-                {'type':'internal-3pt', 'name':'InRange',   'p0': 810.0/1440, 'p1': 960.0/1440, 'p2': 1110.0/1440},
-                {'type':'internal-3pt', 'name':'NearBelow', 'p0': 960.0/1440, 'p1': 1110.0/1440, 'p2': 1170.0/1440},
-                {'type':'right-edge'  , 'name':'FarBelow',  'p0': 1110.0/1440, 'p1': 1170.0/1440}]
-      fz1 = Fuzzifier.fuzzify(x.TIME_OF_DAY, f_sets)
-      df.at[x.name, 'FUZ_LNDNY_WDOW'] = x.TIME_OF_DAY
-      df.at[x.name, 'FUZ_LNDNY_WDOW_G0'] = fz1[0]
-      df.at[x.name, 'FUZ_LNDNY_WDOW_G1'] = fz1[1]
-      df.at[x.name, 'FUZ_LNDNY_WDOW_G2'] = fz1[2]
-      df.at[x.name, 'FUZ_LNDNY_WDOW_G3'] = fz1[3]
-      df.at[x.name, 'FUZ_LNDNY_WDOW_G4'] = fz1[4]       
-      df.at[x.name, 'FUZ_LNDNY_WDOW_S-2'] = f_sets[0]['p0']
-      df.at[x.name, 'FUZ_LNDNY_WDOW_S-1'] = f_sets[1]['p1']
-      df.at[x.name, 'FUZ_LNDNY_WDOW_S0'] = f_sets[2]['p1']
-      df.at[x.name, 'FUZ_LNDNY_WDOW_S+1'] = f_sets[3]['p1']
-      df.at[x.name, 'FUZ_LNDNY_WDOW_S+2'] = f_sets[4]['p1']    
-      f_sets = [{'type':'left-edge',    'name':'InRange',  'p0': 0, 'p1': 120.0/7200},
-                {'type':'internal-3pt', 'name':'Near', 'p0': 0, 'p1': 120.0/7200, 'p2': 240.0/7200},
-                {'type':'right-edge'  , 'name':'Far',  'p0': 120.0/7200, 'p1': 240.0/7200}]
-      fz1 = Fuzzifier.fuzzify(x.TIME_OF_WEEK, f_sets)
-      df.at[x.name, 'FUZ_MKTOPEN_WDOW'] = x.TIME_OF_WEEK
-      df.at[x.name, 'FUZ_MKTOPEN_WDOW_G0'] = fz1[0]
-      df.at[x.name, 'FUZ_MKTOPEN_WDOW_G1'] = fz1[1]
-      df.at[x.name, 'FUZ_MKTOPEN_WDOW_G2'] = fz1[2]
-      df.at[x.name, 'FUZ_MKTOPEN_WDOW_S-2'] = f_sets[0]['p0']
-      df.at[x.name, 'FUZ_MKTOPEN_WDOW_S-1'] = f_sets[1]['p1']
-      df.at[x.name, 'FUZ_MKTOPEN_WDOW_S0'] = f_sets[2]['p1']
-      f_sets = [{'type':'left-edge',    'name':'Far',     'p0': 6960.0/7200, 'p1': 7080.0/7200},
-                {'type':'internal-3pt', 'name':'Near',    'p0': 6960.0/7200, 'p1': 7080.0/7200, 'p2': 7200.0/7200},
-                {'type':'right-edge'  , 'name':'InRange', 'p0': 7080.0/7200, 'p1': 7200.0/7200}]
-      fz1 = Fuzzifier.fuzzify(x.TIME_OF_WEEK, f_sets)
-      df.at[x.name, 'FUZ_MKTCLOSE_WDOW'] = x.TIME_OF_WEEK
-      df.at[x.name, 'FUZ_MKTCLOSE_WDOW_G0'] = fz1[0]
-      df.at[x.name, 'FUZ_MKTCLOSE_WDOW_G1'] = fz1[1]
-      df.at[x.name, 'FUZ_MKTCLOSE_WDOW_G2'] = fz1[2]
-      df.at[x.name, 'FUZ_MKTCLOSE_WDOW_S-2'] = f_sets[0]['p0']
-      df.at[x.name, 'FUZ_MKTCLOSE_WDOW_S-1'] = f_sets[1]['p1']
-      df.at[x.name, 'FUZ_MKTCLOSE_WDOW_S0'] = f_sets[2]['p1']
-      
-    _df_result.apply(lambda x: fn_fuzzify_sessions(x, self.__df, self.__logger), axis=1)
-    return self.__df
-
-
-  #-------------------------------------------------------------------
-  #-------------------------------------------------------------------
   def buildStateChangeEvent(self, level=0.5, threshold=0.1):
     """ Builds column MKT_STAT_CHANGE_EVT in which a boolean value establishes is a market state change
         is present, due to a change in fuzzy variable memberships functions:
@@ -2466,7 +2383,6 @@ class FuzzyMarketState():
     self.fuzzifyChannel()
     self.fuzzifyTrend()
     self.fuzzifyDivergence()
-    self.fuzzifySessionWdows()
     return self.__df
 
   #-------------------------------------------------------------------
