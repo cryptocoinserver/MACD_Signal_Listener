@@ -35,7 +35,7 @@ df = df[['OPEN','HIGH','LOW','CLOSE']]
 
 # defines a common event listener, to be called on MACD event recognition
 def macd_listener(events, df):
-  print('Received events={}'.format(events.info()))
+  print(f'Received events={events.info()}')
 
 ####################################################################################
 

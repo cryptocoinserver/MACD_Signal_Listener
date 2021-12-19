@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import sys
 
@@ -53,9 +52,11 @@ class MACD_Events():
     self.MACD_Bearish_Main_Signal_Crossover = False
 
   def any(self):
-    if self.MACD_Bullish_Divergence or self.MACD_Bearish_Divergence or self.MACD_Bullish_Main_Zero_Crossover or self.MACD_Bearish_Main_Zero_Crossover or self.MACD_Bullish_Main_Signal_Crossover or self.MACD_Bearish_Main_Signal_Crossover:
-      return True
-    return False
+    return bool(self.MACD_Bullish_Divergence or self.MACD_Bearish_Divergence
+                or self.MACD_Bullish_Main_Zero_Crossover
+                or self.MACD_Bearish_Main_Zero_Crossover
+                or self.MACD_Bullish_Main_Signal_Crossover
+                or self.MACD_Bearish_Main_Signal_Crossover)
 
   def info(self):
     result =''
@@ -130,12 +131,12 @@ class MACD_Signal_Listener():
       printf('ERROR: some column is missing. Required columns are: OPEN,HIGH,LOW,CLOSE')
       return 0,None
 
-    if not applied in df.columns:
-      print('Column {} is missing in df'.format(applied))
+    if applied not in df.columns:
+      print(f'Column {applied} is missing in df')
       return 0,None
 
     # copy df to apply changes
-    self.__df = df.copy()      
+    self.__df = df.copy()
     self.__df.reset_index(drop=True, inplace=True)
 
     # add MACD main, signal and histogram
@@ -154,10 +155,10 @@ class MACD_Signal_Listener():
     self.__df['CROSS_SIG_DN'] = (((self.__df.MACD < self.__df.MACDS) & ((self.__df.MACD.shift(1) > self.__df.MACDS.shift(1)) | ((self.__df.MACD.shift(1)==self.__df.MACDS.shift(1)) & (self.__df.MACD.shift(2) > self.__df.MACDS.shift(2))))) & ((self.__df.MACD > 0) & (self.__df.MACD.shift(1) > 0) & (self.__df.MACD.shift(2) > 0)))
 
     # bars with upwards crossover
-    swing_start = self.__df['CROSS_ZERO_UP'] 
+    swing_start = self.__df['CROSS_ZERO_UP']
 
     # bars with downwards crossover above zero
-    swing_stop = self.__df['CROSS_ZERO_DN'] 
+    swing_stop = self.__df['CROSS_ZERO_DN']
 
     # indexes where crossovers occurs
     swing_start_idx = swing_start[swing_start == True]
@@ -166,7 +167,7 @@ class MACD_Signal_Listener():
     # ensures first valid swing
     swing_stop_idx  = swing_stop_idx[swing_stop_idx.index > swing_start_idx.index[0]]
 
-    # now, builds column with macd_max points  
+    # now, builds column with macd_max points
     self.__df['MACD_MAX'] = False
 
     # for each downwards crossover, searches previous upwards crossover
@@ -177,13 +178,13 @@ class MACD_Signal_Listener():
         discarded_bearish_swings += 1
       else:
         idx_max_val = self.__df.MACD[prev_up_cross:dn_cross].idxmax()
-        self.__df['MACD_MAX'].at[idx_max_val] = True  
+        self.__df['MACD_MAX'].at[idx_max_val] = True
 
     # bars with upwards crossover
-    bull_swing_start = self.__df['CROSS_ZERO_DN'] 
+    bull_swing_start = self.__df['CROSS_ZERO_DN']
 
     # bars with upwards crossover below zero
-    bull_swing_stop = self.__df['CROSS_ZERO_UP'] 
+    bull_swing_stop = self.__df['CROSS_ZERO_UP']
 
     # indexes where crossovers occurs
     bull_swing_start_idx = bull_swing_start[bull_swing_start == True]
@@ -192,7 +193,7 @@ class MACD_Signal_Listener():
     # ensures first valid swing
     bull_swing_stop_idx  = bull_swing_stop_idx[bull_swing_stop_idx.index > bull_swing_start_idx.index[0]]
 
-    # now, builds column with macd_min points  
+    # now, builds column with macd_min points
     self.__df['MACD_MIN'] = False
 
     # for each upwards crossover, searches previous downwards crossover
@@ -203,10 +204,10 @@ class MACD_Signal_Listener():
         discarded_bullish_swings += 1
       else:
         idx_min_val = self.__df.MACD[prev_dn_cross:up_cross].idxmin()
-        self.__df['MACD_MIN'].at[idx_min_val] = True  
+        self.__df['MACD_MIN'].at[idx_min_val] = True
 
     # Now, select decreasing-max pairs in MACD main line
-    macd_max = self.__df.MACD[self.__df['MACD_MAX'] == True]
+    macd_max = self.__df.MACD[self.__df['MACD_MAX']]
     self.__df['DECR_MAX'] = False
     prev_ix = macd_max.index[0]
     bear_div_candidates = []
@@ -217,7 +218,7 @@ class MACD_Signal_Listener():
       prev_ix = x
 
     # Now, select increasing-min pairs in MACD main line
-    macd_min = self.__df.MACD[self.__df['MACD_MIN'] == True]
+    macd_min = self.__df.MACD[self.__df['MACD_MIN']]
     self.__df['DECR_MIN'] = False
     bull_prev_ix = macd_min.index[0]
     bull_div_candidates = []

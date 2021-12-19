@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 ####################################################################################
 # Librerías de manejo de datos 
@@ -109,7 +108,7 @@ class Divergences():
     # 1c.Else discard.
 
     def search(row, df, nan_value, logger, exitAt):
-      log = 'row [{}]: '.format(row.name)
+      log = f'row [{row.name}]: '
 
       # skip rows where no zzpoints
       if row.ZIGZAG == nan_value: 
@@ -151,7 +150,7 @@ class Divergences():
       p3_idx = zzpoints.index[-4]
       p4_idx = zzpoints.index[-5]
       p5_idx = zzpoints.index[-6]
-      log += 'p0={}, p1={}, p2={}, p3={}, p4={}, p5={} '.format(p0_idx, p1_idx, p2_idx, p3_idx, p4_idx, p5_idx)
+      log += f'p0={p0_idx}, p1={p1_idx}, p2={p2_idx}, p3={p3_idx}, p4={p4_idx}, p5={p5_idx} '
 
       # check if is bullish trend: is curr_is_MAX then 3max&2min if curr_is_MIN then 3min&2max
       if zzpoints.iloc[-1] > zzpoints.iloc[-3] and zzpoints.iloc[-3] > zzpoints.iloc[-5] and zzpoints.iloc[-2] > zzpoints.iloc[-4]:

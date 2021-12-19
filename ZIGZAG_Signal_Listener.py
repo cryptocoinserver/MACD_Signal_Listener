@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 ####################################################################################
 # Librerías de manejo de datos 
@@ -45,9 +44,7 @@ class ZIGZAG_Events():
     self.ZIGZAG_StartMaxSearch = False
 
   def any(self):
-    if self.ZIGZAG_StartMinSearch or self.ZIGZAG_StartMaxSearch:
-      return True
-    return False
+    return bool(self.ZIGZAG_StartMinSearch or self.ZIGZAG_StartMaxSearch)
 
   def info(self):
     result =''
@@ -103,7 +100,7 @@ class ZIGZAG_Signal_Listener():
         self.last_swing_low_idx = idx
         self.delta = delta
         self.events = ZIGZAG_Events()
-        self.__logger.debug('New action at idx={}: last_high={}, last_low={}, min-delta={}'.format(idx, self.last_high, self.last_low, self.delta))
+        self.__logger.debug(f'New action at idx={idx}: last_high={self.last_high}, last_low={self.last_low}, min-delta={self.delta}')
       #---end action::__init__
 
       def __result(self):
@@ -116,7 +113,7 @@ class ZIGZAG_Signal_Listener():
 
       # this function updates MAX|MIN values with last recorded depending on the current action
       def zigzag(self, x, df):
-        log = 'Procesing [{}]:'.format(x.name)
+        log = f'Procesing [{x.name}]:'
         self.events.clear()
 
         # check if HIGH must be updated
@@ -126,7 +123,7 @@ class ZIGZAG_Signal_Listener():
           #self.beforelast_high_idx = self.last_high_idx          
           self.last_high = max_value
           self.last_high_idx = x.name
-          log += ' new HIGH={}'.format(max_value)   
+          log += f' new HIGH={max_value}'   
           self.__logger.debug(log)
           return self.__result()
 
@@ -137,7 +134,7 @@ class ZIGZAG_Signal_Listener():
           #self.beforelast_low_idx = self.last_low_idx
           self.last_low = min_value
           self.last_low_idx = x.name
-          log += ' new LOW={}'.format(min_value)
+          log += f' new LOW={min_value}'
           self.__logger.debug(log)
           return self.__result()
 
@@ -152,18 +149,18 @@ class ZIGZAG_Signal_Listener():
             # in first swing doesnt apply
             curr_delta = self.delta + 1
           if curr_delta < self.delta:
-            log += ' ERR_DELTA \/ ={}' .format(curr_delta)
+            log += r' ERR_DELTA \/ ={}' .format(curr_delta)
             df.at[self.last_high_idx,'ZIGZAG'] =  nan_value
             df.at[self.last_high_idx,'ACTION'] =  'high'
             if max_value > self.last_high:
-              log += ' replace_HIGH @[{}]=>{}'.format(self.last_high_idx,max_value)               
+              log += f' replace_HIGH @[{self.last_high_idx}]=>{max_value}'               
               self.last_high = max_value
               self.last_high_idx = x.name
             else:
-              log += ' keep_HIGH @[{}]=>{}'.format(self.last_high_idx,self.last_high)
+              log += f' keep_HIGH @[{self.last_high_idx}]=>{self.last_high}'
             df.at[self.last_low_idx,'ZIGZAG'] =  nan_value
             df.at[self.last_low_idx,'ACTION'] =  'high' 
-            log += ' remove LOW @[{}]'.format(self.last_low_idx)
+            log += f' remove LOW @[{self.last_low_idx}]'
             self.last_low = self.beforelast_low
             self.last_low_idx = self.beforelast_low_idx
             self.__logger.info(log)  
@@ -177,7 +174,7 @@ class ZIGZAG_Signal_Listener():
             #self.beforelast_high_idx = self.last_high_idx
             self.last_high = max_value
             self.last_high_idx = x.name
-            log += ' save LOW @[{}]={}, new HIGH=>{}'.format(self.last_low_idx, self.last_low, max_value)    
+            log += f' save LOW @[{self.last_low_idx}]={self.last_low}, new HIGH=>{max_value}'    
             self.__logger.debug(log)
           return self.__result()
 
@@ -192,18 +189,18 @@ class ZIGZAG_Signal_Listener():
             # in first swing doesnt apply
             curr_delta = self.delta + 1          
           if curr_delta < self.delta:
-            log += ' ERR_DELTA /\ ={}' .format(curr_delta) 
+            log += r' ERR_DELTA /\ ={}' .format(curr_delta) 
             df.at[self.last_low_idx,'ZIGZAG'] =  nan_value
             df.at[self.last_low_idx,'ACTION'] =  'low'
             if min_value < self.last_low:
-              log += ' replace_LOW @[{}]=>{}'.format(self.last_low_idx,min_value)              
+              log += f' replace_LOW @[{self.last_low_idx}]=>{min_value}'              
               self.last_low = min_value
               self.last_low_idx = x.name  
             else:
-              log += ' keep_LOW @[{}]=>{}'.format(self.last_low_idx,self.last_low)
+              log += f' keep_LOW @[{self.last_low_idx}]=>{self.last_low}'
             df.at[self.last_high_idx,'ZIGZAG'] =  nan_value
             df.at[self.last_high_idx,'ACTION'] =  'low' 
-            log += ' remove HIGH @[{}]'.format(self.last_high_idx)
+            log += f' remove HIGH @[{self.last_high_idx}]'
             self.last_high = self.beforelast_high
             self.last_high_idx = self.beforelast_high_idx
             self.__logger.info(log)  
@@ -217,21 +214,21 @@ class ZIGZAG_Signal_Listener():
             #self.beforelast_low_idx = self.last_low_idx
             self.last_low = min_value
             self.last_low_idx = x.name
-            log += ' save HIGH @[{}]={}, new LOW=>{}'.format(self.last_high_idx, self.last_high, min_value)        
+            log += f' save HIGH @[{self.last_high_idx}]={self.last_high}, new LOW=>{min_value}'        
             self.__logger.debug(log)
           return self.__result()
 
         if self.curr == ActionCtrl.ActionType.SearchingLow:
-          log += ' curr LOW @[{}]=>{}'.format(self.last_low_idx,self.last_low)
+          log += f' curr LOW @[{self.last_low_idx}]=>{self.last_low}'
         elif self.curr == ActionCtrl.ActionType.SearchingHigh:
-          log += ' curr HIGH @[{}]=>{}'.format(self.last_high_idx,self.last_high)
+          log += f' curr HIGH @[{self.last_high_idx}]=>{self.last_high}'
         self.__logger.debug(log)
         return self.__result()    
       #---end action::zigzag
 
       # registers previous zzpoints and their indexes at current row.Px and row.Px_idx
       def points(self, row, df, nan_value):
-        log = 'row [{}] zigzag={}: '.format(row.name, row.ZIGZAG)
+        log = f'row [{row.name}] zigzag={row.ZIGZAG}: '
 
         # get last 5 zigzag points
         zzpoints = df.ZIGZAG[(df.index < row.name) & (df.ZIGZAG != nan_value) & (df.ACTION.str.contains('in-progress')==False)]
@@ -242,8 +239,8 @@ class ZIGZAG_Signal_Listener():
           return
         # update rows
         for i in range(1,7):
-          df.at[row.name,'P{}'.format(i)] = zzpoints.iloc[-i]          
-          df.at[row.name,'P{}_idx'.format(i)] = zzpoints.index[-i]
+          df.at[row.name,f'P{i}'] = zzpoints.iloc[-i]          
+          df.at[row.name,f'P{i}_idx'] = zzpoints.index[-i]
         log += 'Updated!! '
         self.__logger.debug(log)
       #---end action::points
@@ -288,8 +285,8 @@ class ZIGZAG_Signal_Listener():
     
     # now adds point p1 to p6 backtrace of values and indexes:
     for i in range(1,7):
-      _df['P{}'.format(i)] = nan_value
-      _df['P{}_idx'.format(i)] = 0
+      _df[f'P{i}'] = nan_value
+      _df[f'P{i}_idx'] = 0
 
     _df.apply(lambda x: action.points(x, _df, nan_value), axis=1)
     self.__df = _df

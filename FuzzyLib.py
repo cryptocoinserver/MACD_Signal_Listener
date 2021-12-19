@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 """
   FuzzyLib is a python class that provides basic Fuzzy Logic operations: 
@@ -209,7 +208,7 @@ class FuzzyVar():
     self.__num_sets = int((len(fuzzy_set_points)+2)/3)
     self.__crisp_value = 0.0
     self.__fuzzy_values = []
-    for i in range(self.__num_sets):
+    for _ in range(self.__num_sets):
       self.__fuzzy_values.append(0.0)
 
   
@@ -222,7 +221,7 @@ class FuzzyVar():
         level -- new logging level
     """   
     self.__logger.setLevel(level)
-    self.__logger.debug('Logging level changed to {}'.format(level))
+    self.__logger.debug(f'Logging level changed to {level}')
 
 
   #-------------------------------------------------------------------
@@ -246,12 +245,10 @@ class FuzzyVar():
     """ Get fuzzy-sets names as a dictionary in this format:
         result = {'G0':'name_0, 'G1':'name_1, ..., 'Gx':'name_x}
     """
-    g=0
-    result = dict()
-    for i in self.__fuzzy_set_points:
-      result['G{}'.format(g)] = i['name']
-      g += 1
-    return result
+    return {
+        f'G{g}': i['name']
+        for g, i in enumerate(self.__fuzzy_set_points)
+    }
 
 
   #-------------------------------------------------------------------
@@ -260,10 +257,7 @@ class FuzzyVar():
     """ Get fuzzy-sets names as a dictionary in this format:
         result = {'G0':'type_0, 'G1':'type_1, ..., 'Gx':'type_x}
     """
-    g=0
-    result = dict()
-    for i in self.__fuzzy_set_points:
-      result['G{}'.format(g)] = i['type']
-      g += 1
-    return result
-  
+    return {
+        f'G{g}': i['type']
+        for g, i in enumerate(self.__fuzzy_set_points)
+    }
