@@ -7,7 +7,7 @@ from dash.dependencies import Input, Output
 import pandas as pd
 import plotly.graph_objs as go
 import plotly
-import plotly.plotly as py
+import chart_studio.plotly as py
 from plotly.graph_objs import *
 from plotly.tools import FigureFactory as FF
 import plotly.tools as tls

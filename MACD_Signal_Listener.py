@@ -16,7 +16,7 @@ from matplotlib import dates, ticker
 from matplotlib.dates import (MONDAY, DateFormatter, MonthLocator, WeekdayLocator, date2num)
 import matplotlib as mpl
 import plotly
-import plotly.plotly as py
+import chart_studio.plotly as py
 import plotly.graph_objs as go
 from plotly.graph_objs import *
 from plotly.tools import FigureFactory as FF

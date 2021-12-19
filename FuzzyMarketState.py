@@ -47,7 +47,7 @@ import skfuzzy.control as ctrl
 ####################################################################################
 # Librerías de visualización
 import plotly
-import plotly.plotly as py
+import chart_studio.plotly as py
 import plotly.graph_objs as go
 from plotly.graph_objs import *
 from plotly.tools import FigureFactory as FF
